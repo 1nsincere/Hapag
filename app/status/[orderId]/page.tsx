@@ -4,160 +4,143 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { listenToOrder, Order, OrderStatus } from '@/lib/data'
+import {
+  peso, pad2, shortId, delay, DishImage, TopBar, BottomNav, LoadingScreen, MessageScreen,
+} from '@/app/components/customer/ui'
 
-const STATUS_STEPS: { key: OrderStatus; label: string; icon: string; desc: string }[] = [
-  { key: 'pending', label: 'Awaiting Acceptance', icon: 'schedule', desc: 'Your order is waiting for cashier acceptance.' },
-  { key: 'accepted', label: 'Ready for Payment', icon: 'payments', desc: 'Your order has been accepted. Please complete payment.' },
-  { key: 'preparing', label: 'Order Received', icon: 'check_circle', desc: 'Your order has been sent to the kitchen.' },
-  { key: 'in-progress', label: 'Preparing', icon: 'local_fire_department', desc: 'The kitchen is working on your meal.' },
-  { key: 'ready', label: 'Ready!', icon: 'restaurant', desc: 'Your order is ready to be served.' },
-  { key: 'served', label: 'Served', icon: 'done_all', desc: 'Enjoy your meal! 🎉' },
+const STEPS: { key: OrderStatus; title: string; headline: string; desc: string; icon: string }[] = [
+  { key: 'pending',     title: 'Order sent',          headline: 'Order sent',        icon: 'send',                  desc: 'The restaurant is reviewing your order.' },
+  { key: 'accepted',    title: 'Confirmed',           headline: 'Ready for payment', icon: 'task_alt',              desc: 'Your order is confirmed. Pay now and it goes straight to the kitchen.' },
+  { key: 'preparing',   title: 'Paid · in the queue', headline: 'In the kitchen',    icon: 'receipt_long',          desc: 'Payment received. The kitchen has your order.' },
+  { key: 'in-progress', title: 'Being prepared',      headline: 'Being prepared',    icon: 'local_fire_department', desc: 'The chefs are cooking your meal right now.' },
+  { key: 'ready',       title: 'Ready',               headline: 'Almost at your table', icon: 'room_service',       desc: 'Your order is ready and on its way to you.' },
+  { key: 'served',      title: 'Served',              headline: 'Enjoy your meal',   icon: 'restaurant',            desc: 'Everything has been served. Masarap na kainan!' },
 ]
 
-function getStepIndex(status: OrderStatus) {
-  return Math.max(0, STATUS_STEPS.findIndex(s => s.key === status))
-}
+const stepIndex = (status: OrderStatus) => Math.max(0, STEPS.findIndex(s => s.key === status))
 
 export default function StatusPage() {
   const params = useParams()
   const orderId = params.orderId as string
   const [order, setOrder] = useState<Order | null>(null)
-  const [waiterCalled, setWaiterCalled] = useState(false) // BUG-23: Track call state
+  const [loaded, setLoaded] = useState(false)
+  const [waiterCalled, setWaiterCalled] = useState(false)
 
   useEffect(() => {
     if (!orderId) return
-    return listenToOrder(orderId, setOrder)
+    return listenToOrder(orderId, data => { setOrder(data); setLoaded(true) })
   }, [orderId])
 
+  if (!loaded) return <LoadingScreen label="Finding your order" />
   if (!order) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center text-on-surface-variant">
-          <span className="material-symbols-outlined text-5xl animate-spin block mb-3 text-primary">progress_activity</span>
-          <p>Loading order...</p>
-        </div>
-      </div>
+      <MessageScreen
+        icon="receipt_long"
+        title="Order not found"
+        body="This order may have been removed. Please ask a member of staff for help."
+        action={<Link href="/" className="hp-btn hp-btn-ghost">Return home</Link>}
+      />
     )
   }
 
-  const currentStep = getStepIndex(order.status)
+  const current = stepIndex(order.status)
+  const step = STEPS[current]
+  const itemCount = order.items.reduce((s, i) => s + i.quantity, 0)
+  const isPaid = order.paymentStatus === 'paid'
 
   return (
-    <div className="bg-background min-h-screen pb-32">
-      <header className="sticky top-0 z-50 bg-white border-b border-zinc-100 shadow-sm flex items-center px-4 h-16 gap-4">
-        <Link href={`/menu/${order.tableNumber}`} className="p-2 hover:bg-zinc-50 rounded-full active:scale-95 transition-transform">
-          <span className="material-symbols-outlined text-primary">arrow_back</span>
-        </Link>
-        <h1 className="font-bold text-lg text-primary">Order Status</h1>
-        <div className="ml-auto flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-label-sm text-slate-600 uppercase">Live</span>
-        </div>
-      </header>
+    <div className="hp">
+      <TopBar
+        title="Your order"
+        subtitle={`Table ${pad2(order.tableNumber)} · #${shortId(order.id)}`}
+        left={
+          <Link href={`/menu/${order.tableNumber}`} className="hp-icon-btn" aria-label="Back to menu">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </Link>
+        }
+        right={<span className="hp-live"><i />Live</span>}
+      />
 
-      <main className="max-w-xl mx-auto px-4 pt-6 space-y-6 animate-fade-in">
-        {/* Order info */}
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-5">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="text-label-sm text-outline uppercase tracking-widest mb-1">Table {order.tableNumber}</p>
-              <h2 className="text-headline-md font-bold">Order #{order.id}</h2>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-label-sm font-bold uppercase ${
-              order.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-              order.status === 'ready' ? 'bg-green-100 text-green-700' :
-              order.status === 'in-progress' ? 'bg-orange-100 text-primary' :
-              order.status === 'served' ? 'bg-secondary-container text-on-secondary-container' :
-              'bg-surface-container text-on-surface-variant'
-            }`}>
-              {STATUS_STEPS[currentStep]?.label || order.status}
-            </span>
-          </div>
-          <p className="text-body-md text-on-surface-variant">{STATUS_STEPS[currentStep]?.desc}</p>
-        </div>
+      <main className="hp-container hp-stack" style={{ paddingBottom: 120 }}>
+        {/* Hero */}
+        <section className="hp-status-hero" aria-live="polite">
+          <div className="hp-orb hp-fade-up"><span className="material-symbols-outlined">{step.icon}</span></div>
+          <p className="hp-eyebrow hp-fade-up" style={delay(80)}>Step {current + 1} of {STEPS.length}</p>
+          <h1 className="hp-display hp-display-sm hp-fade-up" style={delay(140)}>{step.headline}</h1>
+          <p className="hp-muted hp-fade-up" style={{ ...delay(200), maxWidth: 360 }}>{step.desc}</p>
+          {order.status === 'accepted' && (
+            <Link href={`/checkout/${order.id}`} className="hp-btn hp-btn-primary hp-btn-lg hp-fade-up" style={delay(260)}>
+              Pay now
+              <span className="material-symbols-outlined">arrow_forward</span>
+            </Link>
+          )}
+        </section>
 
-        {/* Progress stepper */}
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-6">
-          <div className="space-y-0">
-            {STATUS_STEPS.map((step, idx) => {
-              const done = idx <= currentStep
-              const active = idx === currentStep
+        {/* Timeline */}
+        <section className="hp-card hp-card-pad" aria-label="Order progress">
+          <ol className="hp-timeline">
+            {STEPS.map((s, idx) => {
+              const state = idx < current ? ' is-done' : idx === current ? ' is-current' : ''
               return (
-                <div key={step.key} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                      done ? 'bg-primary text-on-primary shadow-lg shadow-primary/30' : 'bg-surface-container text-on-surface-variant'
-                    } ${active ? 'ring-4 ring-primary/20' : ''}`}>
-                      <span className={`${done ? 'material-symbols-filled' : 'material-symbols-outlined'} text-xl`}>{step.icon}</span>
-                    </div>
-                    {idx < STATUS_STEPS.length - 1 && (<div className={`w-0.5 h-10 mt-1 transition-colors ${done ? 'bg-primary' : 'bg-outline-variant'}`} />)}
+                <li key={s.key} className={`hp-step${state}`}>
+                  <span className="hp-step-dot">
+                    <span className="material-symbols-outlined">{idx < current ? 'check' : s.icon}</span>
+                  </span>
+                  <div>
+                    <p className="hp-step-title">{s.title}</p>
+                    {idx === current && <p className="hp-step-desc">{s.desc}</p>}
                   </div>
-                  <div className="pt-2 pb-8">
-                    <p className={`font-bold ${done ? 'text-on-surface' : 'text-on-surface-variant'}`}>{step.label}</p>
-                    {active && <p className="text-body-md text-primary text-sm">{step.desc}</p>}
-                  </div>
-                </div>
+                </li>
               )
             })}
-          </div>
-        </div>
+          </ol>
+        </section>
 
         {/* Items */}
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 p-5">
-          <h3 className="font-bold text-on-surface mb-4">Your Items</h3>
-          <div className="space-y-3">
+        <section className="hp-card hp-card-pad">
+          <div className="hp-card-head">
+            <h2 className="hp-title-sm">Your items</h2>
+            <span className="hp-label">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div>
             {order.items.map(item => (
-              <div key={item.id} className="flex items-center gap-3">
-                <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover" />
-                <div className="flex-1">
-                  <p className="font-semibold text-on-surface">{item.quantity}x {item.name}</p>
-                  <p className="text-primary font-bold text-sm">₱{(item.price * item.quantity).toFixed(2)}</p>
+              <div key={item.id} className="hp-line">
+                <DishImage src={item.image} alt={item.name} />
+                <div className="hp-line-main">
+                  <p className="hp-line-name">{item.name}</p>
+                  <p className="hp-line-sub">{item.quantity} × {peso(item.price)}{item.variantName ? ` · ${item.variantName}` : ''}</p>
                 </div>
+                <span className="hp-line-price">{peso(item.price * item.quantity)}</span>
               </div>
             ))}
-            <div className="pt-3 border-t border-dashed border-zinc-200 flex justify-between font-bold">
-              <span>Total</span>
-              <span className="text-primary">₱{order.total.toFixed(2)}</span>
+          </div>
+          {order.specialInstructions && <p className="hp-note">&ldquo;{order.specialInstructions}&rdquo;</p>}
+          <div className="hp-totals" style={{ marginTop: 16 }}>
+            <div className="hp-total-row hp-total-grand">
+              <span>{isPaid ? 'Paid' : 'Subtotal'}</span>
+              <span>{peso(isPaid ? (order.grandTotal ?? order.total) : order.total)}</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {order.status === 'accepted' && (
-          <Link
-            href={`/checkout/${order.id}`}
-            className="w-full inline-flex items-center justify-center gap-2 bg-primary text-white py-4 rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-primary/10"
-          >
-            <span className="material-symbols-outlined">payments</span>
-            Complete Payment
-          </Link>
-        )}
-
-        {/* BUG-23: Call waiter button with feedback instead of being a no-op */}
         <button
+          type="button"
           onClick={() => { setWaiterCalled(true); setTimeout(() => setWaiterCalled(false), 3000) }}
           disabled={waiterCalled}
-          className={`w-full flex items-center justify-center gap-2 border-2 py-4 rounded-2xl font-bold active:scale-95 transition-all ${
-            waiterCalled
-              ? 'border-green-500 text-green-700 bg-green-50 cursor-default'
-              : 'border-outline-variant text-on-surface hover:bg-surface-container'
-          }`}
+          className="hp-btn hp-btn-ghost hp-btn-block"
         >
-          <span className="material-symbols-outlined text-primary">{waiterCalled ? 'check_circle' : 'notifications'}</span>
-          {waiterCalled ? 'Waiter has been notified!' : 'Call Waiter'}
+          <span className="material-symbols-outlined">{waiterCalled ? 'check_circle' : 'notifications'}</span>
+          {waiterCalled ? 'A staff member is on the way' : 'Call staff'}
         </button>
+
+        {isPaid && (
+          <Link href={`/confirmation/${order.id}`} className="hp-btn hp-btn-quiet hp-btn-block">
+            View receipt
+          </Link>
+        )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 backdrop-blur-md rounded-t-2xl border-t border-zinc-100">
-        <Link href={`/menu/${order.tableNumber}`} className="flex flex-col items-center text-slate-400 text-[11px] font-semibold active:scale-90 transition-all">
-          <span className="material-symbols-outlined">restaurant_menu</span><span>Menu</span>
-        </Link>
-        <Link href={`/confirmation/${order.id}`} className="flex flex-col items-center text-slate-400 text-[11px] font-semibold active:scale-90 transition-all">
-          <span className="material-symbols-outlined">receipt_long</span><span>Receipt</span>
-        </Link>
-        <div className="flex flex-col items-center text-primary bg-orange-50 rounded-xl px-4 py-1 text-[11px] font-semibold">
-          <span className="material-symbols-outlined">delivery_dining</span><span>Status</span>
-        </div>
-      </nav>
+      <BottomNav tableNumber={order.tableNumber} active="status" orderId={order.id} />
     </div>
   )
 }
