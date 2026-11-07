@@ -12,7 +12,7 @@ import {
   deleteDoc,
   writeBatch
 } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
 
 export const ensureAuth = async () => {
@@ -54,7 +54,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  restaurantName: 'Terracotta Kitchen',
+  restaurantName: 'My Restaurant',
   stationName: 'Main Line',
   taxRate: '8',
   serviceFee: '2.50',
@@ -119,6 +119,9 @@ export async function createTable(table: Omit<Table, 'id' | 'createdAt' | 'updat
 
 export async function updateTableStatus(tableId: string, status: TableStatus, orderId?: string | null) {
   try {
+    // Customers scanning a QR code may not be signed in yet — the rules require
+    // at least an anonymous Firebase session to write table occupancy.
+    await ensureAuth()
     const now = Date.now()
     await updateDoc(doc(db, TABLES_COL, tableId), {
       status,
@@ -405,7 +408,7 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
 }
 
 /**
- * Kitchen "Mark Served" — marks the ORDER as served and ensures the table is occupied.
+ * Kitchen "Mark Served" — marks the ORDER as served.
  *
  * Lifecycle summary:
  *   new  →  in-progress  →  ready  →  served   (kitchen pipeline)
@@ -413,22 +416,12 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
  */
 export async function markOrderServed(orderId: string): Promise<void> {
   try {
-    const tablesSnap = await getDocs(collection(db, TABLES_COL))
-    const tableDoc = tablesSnap.docs.find(doc => doc.data().currentOrderId === orderId)
-    
-    const batch = writeBatch(db)
-    batch.update(doc(db, ORDERS_COL, orderId), {
+    // Table status is controlled by QR scan (occupied) and payment (available);
+    // serving an order no longer touches the table.
+    await updateDoc(doc(db, ORDERS_COL, orderId), {
       status: 'served',
       updatedAt: Date.now()
     })
-    
-    if (tableDoc) {
-      // Logic removed: Table status is now controlled by QR scan (Occupied) 
-      // and Payment (Available). markOrderServed no longer changes table status.
-    }
-    
-    await batch.commit()
-    console.log('[markOrderServed] order served and table occupied')
   } catch (error) {
     console.error('Error marking order served:', error)
   }
@@ -447,7 +440,8 @@ export async function processPaymentAndActivateOrder(
   paymentMethod: 'qrph' | 'card' | 'cash',
   tipAmount: number,
   grandTotal: number,
-  tableId?: string
+  tableId?: string,
+  finalItems?: { items: CartItem[]; total: number }
 ): Promise<void> {
   try {
     // Ensure the client SDK is authenticated (anonymously for customers) before writing
@@ -456,8 +450,10 @@ export async function processPaymentAndActivateOrder(
     const now = Date.now()
     const batch = writeBatch(db)
 
-    // Promote order to kitchen queue
+    // Promote order to kitchen queue. If the customer adjusted quantities at
+    // checkout, persist the final items so the kitchen cooks what was paid for.
     batch.update(doc(db, ORDERS_COL, orderId), {
+      ...(finalItems ? { items: finalItems.items, total: finalItems.total } : {}),
       paymentStatus: 'paid',
       paymentMethod,
       tipAmount,

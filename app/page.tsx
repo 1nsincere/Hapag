@@ -32,7 +32,7 @@ export default function Home() {
         </div>
 
         <p className="text-label-sm text-outline text-center mt-8">
-          {settings.restaurantName} · Powered by QR Ordering
+          {settings.restaurantName} · Powered by Hapag
         </p>
       </div>
     </main>

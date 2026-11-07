@@ -173,6 +173,18 @@ export default function CheckoutPage() {
 
   const handlePay = async () => {
     setShowSummaryModal(false)
+    if (order.paymentStatus === 'paid') {
+      router.push(`/confirmation/${orderId}`)
+      return
+    }
+    if (order.status !== 'accepted') {
+      alert('Your order is still waiting for the cashier to accept it. Please try again in a moment.')
+      return
+    }
+    if (orderItems.length === 0) {
+      alert('Your order has no items.')
+      return
+    }
     setIsProcessing(true)
     try {
       // Simulate payment processing (replace with real gateway in production)
@@ -196,7 +208,8 @@ export default function CheckoutPage() {
         paymentMethod,
         tipAmount,
         grandTotal,
-        tableId
+        tableId,
+        { items: orderItems, total: subtotal }
       )
 
       // Clean up session storage

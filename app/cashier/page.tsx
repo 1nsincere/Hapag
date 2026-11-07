@@ -12,7 +12,7 @@ import { NotificationsPanel } from '@/app/cashier/components/NotificationsPanel'
 import { HistoryPanel } from '@/app/cashier/components/HistoryPanel'
 import { SettingsPanel } from '@/app/cashier/components/SettingsPanel'
 import { TableOrderHistoryModal } from '@/app/cashier/components/TableOrderHistoryModal'
-import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder } from '@/lib/data'
+import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS } from '@/lib/data'
 
 function CashierContent() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -22,6 +22,8 @@ function CashierContent() {
   const [tables, setTables] = useState<Table[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  useEffect(() => listenToSettings(setSettings), [])
   
   // Pay QR order state
   const [payingOrder, setPayingOrder] = useState<Order | null>(null)
@@ -209,7 +211,7 @@ function CashierContent() {
             </div>
             <div>
               <h1 className="font-bold text-on-surface text-lg">Cashier POS</h1>
-              <p className="text-xs text-on-surface-variant">Wawo&apos;s House</p>
+              <p className="text-xs text-on-surface-variant">{settings.restaurantName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

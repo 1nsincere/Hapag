@@ -121,7 +121,7 @@ function WelcomeScreen({ tableNumber, restaurantName, onStart }: { tableNumber: 
             <span className="material-symbols-outlined ww-btn-arrow">arrow_forward</span>
           </button>
         </div>
-        <p className="ww-footer">Scan & Order · {restaurantName}</p>
+        <p className="ww-footer">{restaurantName} · Powered by Hapag</p>
       </div>
     </>
   )

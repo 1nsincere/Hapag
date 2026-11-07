@@ -4,8 +4,8 @@ import Providers from './providers'
 
 // Static metadata — restaurant name is loaded client-side via listenToSettings
 export const metadata: Metadata = {
-  title: 'Restaurant POS',
-  description: 'QR Table Ordering System — Order from your table instantly.',
+  title: 'Hapag — QR Ordering for Restaurants',
+  description: 'Hapag — scan, order and pay from your table. Smart QR ordering and POS for restaurants.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

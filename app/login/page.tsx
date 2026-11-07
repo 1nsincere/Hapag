@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { signIn, useSession } from 'next-auth/react'
+import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ROLE_LANDING, UserRole } from '@/lib/auth'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
@@ -9,19 +9,20 @@ import { auth } from '@/lib/firebase'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { status } = useSession()
+  const { status, data: session } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // If already authenticated, redirect to landing (must be in useEffect to avoid
-  // calling router.replace during render, which triggers setState on Router)
+  // If already authenticated, redirect to the role's landing page (must be in
+  // useEffect to avoid calling router.replace during render)
   useEffect(() => {
     if (status === 'authenticated') {
-      router.replace('/dashboard')
+      const role = session?.user?.role
+      router.replace(role && ROLE_LANDING[role] ? ROLE_LANDING[role] : '/unauthorized')
     }
-  }, [status, router])
+  }, [status, session, router])
 
   if (status === 'authenticated') {
     return null
@@ -33,18 +34,9 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      try {
-        await signInWithEmailAndPassword(auth, email, password)
-      } catch (err: any) {
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-          // Auto-create in Firebase Auth so the frontend client SDK works for seeded NextAuth users
-          await createUserWithEmailAndPassword(auth, email, password)
-        } else {
-          throw err;
-        }
-      }
-
-      // 2. Sign into NextAuth so the middleware gets the JWT cookie
+      // 1. Verify credentials server-side via NextAuth FIRST. Only staff with
+      //    valid credentials may go on to get a Firebase session — otherwise
+      //    anyone could claim a staff email in Firebase Auth.
       const result = await signIn('credentials', {
         email,
         password,
@@ -55,6 +47,29 @@ export default function LoginPage() {
         setError('Invalid email or password. Please try again.')
         setIsLoading(false)
         return
+      }
+
+      // 2. Sign into Firebase Auth so Firestore security rules see the staff email
+      try {
+        await signInWithEmailAndPassword(auth, email, password)
+      } catch (err) {
+        const code = (err as { code?: string }).code
+        if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+          // First login for a seeded staff account — create its Firebase user
+          try {
+            await createUserWithEmailAndPassword(auth, email, password)
+          } catch (createErr) {
+            if ((createErr as { code?: string }).code === 'auth/email-already-in-use') {
+              await signOut({ redirect: false })
+              setError('This staff account exists in Firebase with a different password. Reset it in the Firebase console.')
+              setIsLoading(false)
+              return
+            }
+            throw createErr
+          }
+        } else {
+          throw err
+        }
       }
 
       // Fetch the session to get the role
@@ -84,7 +99,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-3xl font-black text-on-surface tracking-tight">Staff Login</h1>
           <p className="text-on-surface-variant mt-2 text-sm">
-            Sign in to access the management portal
+            Sign in to Hapag — your restaurant&apos;s command center
           </p>
         </div>
 

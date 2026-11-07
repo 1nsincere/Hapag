@@ -46,8 +46,18 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAnonymous() || isAdminOrCashier(); // Customers and staff can place orders
       
-      allow update: if isAdminOrCashier() || isKitchen();
-        
+      // Staff can update freely. Anonymous customers may ONLY perform the
+      // self-checkout transition: accepted + unpaid  →  preparing + paid,
+      // optionally with adjusted items/total from the checkout page.
+      allow update: if isAdminOrCashier() || isKitchen() ||
+        (isAnonymous() &&
+         resource.data.status == 'accepted' &&
+         resource.data.paymentStatus == 'pending' &&
+         request.resource.data.status == 'preparing' &&
+         request.resource.data.paymentStatus == 'paid' &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+           ['status', 'paymentStatus', 'paymentMethod', 'tipAmount', 'grandTotal', 'paidAt', 'updatedAt', 'items', 'total']));
+
       allow delete: if isAdmin();
     }
 

@@ -31,7 +31,7 @@ export async function requireRole(
     )
   }
 
-  const role = (session.user as any).role as UserRole | undefined
+  const role: UserRole | undefined = session.user?.role
 
   if (!role || !allowedRoles.includes(role)) {
     return NextResponse.json(

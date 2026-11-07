@@ -66,7 +66,7 @@ export const authOptions: NextAuthOptions = {
     /** Persist the user's role inside the JWT token */
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role as UserRole
+        token.role = user.role
       }
       return token
     },
@@ -74,7 +74,7 @@ export const authOptions: NextAuthOptions = {
     /** Expose the role on the client-side session object */
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role as UserRole
+        session.user.role = token.role
       }
       return session
     },

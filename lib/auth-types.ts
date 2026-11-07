@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { UserRole } from './auth'
 import 'next-auth'
 import 'next-auth/jwt'

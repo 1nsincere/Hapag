@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 /**
- * ─── Role-Based Middleware ───────────────────────────────────────────────────
+ * ─── Role-Based Proxy (formerly middleware) ───────────────────────────────────────────────────
  *
  * Intercepts protected routes and checks the JWT token's role before allowing
  * access.  Unauthenticated users are sent to /login; authenticated users
@@ -12,7 +12,7 @@ import { getToken } from 'next-auth/jwt'
  * Public routes (/menu, /order, /status, /) are excluded via the matcher
  * config below — customers access them freely via QR without logging in.
  */
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me-in-production' })
   const { pathname } = req.nextUrl
 
