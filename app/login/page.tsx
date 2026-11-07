@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ROLE_LANDING, UserRole } from '@/lib/auth'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 
 const isNetworkError = (err: unknown) => (err as { code?: string })?.code === 'auth/network-request-failed'
@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [notice, setNotice] = useState('')
 
   // If already authenticated, redirect to the role's landing page (must be in
   // useEffect to avoid calling router.replace during render).
@@ -43,63 +44,64 @@ export default function LoginPage() {
     return null
   }
 
+  const handleForgot = async () => {
+    setError('')
+    setNotice('')
+    if (!email.trim()) { setError('Type your email above first, then tap “Forgot password?”.'); return }
+    try {
+      await withNetworkRetry(() => sendPasswordResetEmail(auth, email.trim()))
+    } catch (err) {
+      if (isNetworkError(err)) { setError('Can’t reach the login server. Check the internet connection.'); return }
+      // Don't reveal whether the email exists — fall through to the same message
+    }
+    setNotice('If that email belongs to a staff account, a password-reset link is on its way.')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
 
+    setNotice('')
     try {
-      // 1. Verify credentials server-side via NextAuth FIRST. Only staff with
-      //    valid credentials may go on to get a Firebase session — otherwise
-      //    anyone could claim a staff email in Firebase Auth.
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError('Invalid email or password. Please try again.')
+      // 1. Firebase checks the email + password (the app never sees or stores passwords)
+      let idToken: string
+      try {
+        const cred = await withNetworkRetry(() => signInWithEmailAndPassword(auth, email.trim(), password))
+        idToken = await cred.user.getIdToken()
+      } catch (err) {
+        const code = (err as { code?: string }).code ?? ''
+        if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(code)) {
+          setError('Wrong email or password. Please try again.')
+        } else if (code === 'auth/too-many-requests') {
+          setError('Too many attempts. Wait a minute, or use “Forgot password?”.')
+        } else if (code === 'auth/user-disabled') {
+          setError('This account has been disabled. Ask the owner for help.')
+        } else {
+          throw err
+        }
         setIsLoading(false)
         return
       }
 
-      // 2. Sign into Firebase Auth so Firestore security rules see the staff email
-      try {
-        await withNetworkRetry(() => signInWithEmailAndPassword(auth, email, password))
-      } catch (err) {
-        const code = (err as { code?: string }).code
-        if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-          // First login for a seeded staff account — create its Firebase user
-          try {
-            await withNetworkRetry(() => createUserWithEmailAndPassword(auth, email, password))
-          } catch (createErr) {
-            if ((createErr as { code?: string }).code === 'auth/email-already-in-use') {
-              await signOut({ redirect: false })
-              setError('This staff account exists in Firebase with a different password. Reset it in the Firebase console.')
-              setIsLoading(false)
-              return
-            }
-            throw createErr
-          }
-        } else {
-          throw err
-        }
+      // 2. The server verifies the Firebase token and checks the staff list (role, active)
+      const result = await signIn('credentials', { idToken, redirect: false })
+      if (result?.error) {
+        await firebaseSignOut(auth).catch(() => {})
+        setError('This account isn’t set up as staff, or it was deactivated. Ask the owner to add you in Admin → Staff.')
+        setIsLoading(false)
+        return
       }
 
-      // Fetch the session to get the role
+      // 3. Go to the screen for this person's role
       const sessionRes = await fetch('/api/auth/session')
       const session = await sessionRes.json()
       const role = session?.user?.role as UserRole | undefined
-
-      if (role && ROLE_LANDING[role]) {
-        router.push(ROLE_LANDING[role])
-      } else {
-        router.push('/dashboard')
-      }
+      router.push(role && ROLE_LANDING[role] ? ROLE_LANDING[role] : '/unauthorized')
     } catch (err) {
       console.error('Login error:', err)
-      // Don't leave a half-finished login (app session without Firebase session)
+      // Don't leave a half-finished login (Firebase session without app session)
+      await firebaseSignOut(auth).catch(() => {})
       try { await signOut({ redirect: false }) } catch { /* ignore */ }
       setError(isNetworkError(err)
         ? 'Can’t reach the login server. Check the internet connection and try again.'
@@ -175,6 +177,19 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="flex justify-end -mt-2">
+            <button type="button" onClick={handleForgot} className="text-xs font-semibold text-primary hover:underline">
+              Forgot password?
+            </button>
+          </div>
+
+          {notice && (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <span className="material-symbols-outlined text-emerald-600 text-lg">mark_email_read</span>
+              <p className="text-emerald-800 text-sm font-medium">{notice}</p>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -208,7 +223,7 @@ export default function LoginPage() {
         {/* Demo Credentials */}
         <div className="mt-6 bg-white/80 backdrop-blur rounded-2xl border border-zinc-100 p-5 animate-fade-in">
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">
-            Demo Credentials
+            Demo accounts — change these passwords before going live
           </p>
           <div className="space-y-2">
             {[

@@ -11,7 +11,7 @@ const {
   getFirestore, doc, collection, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
   writeBatch, query, orderBy, where,
 } = req('firebase/firestore')
-const { getAuth, signInAnonymously, signInWithEmailAndPassword } = req('firebase/auth')
+const { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword } = req('firebase/auth')
 const { setDoc } = req('firebase/firestore')
 
 // ── config from .env.local ──────────────────────────────────────────────────
@@ -237,6 +237,43 @@ async function snapshotScreens(db, orderId, tableId, label) {
     check('a stranger cannot read other people\'s orders', peek === 'denied', peek)
     const ownRead = await attempt(() => getDoc(doc(customer.db, 'orders', orderRef.id)))
     check('the customer CAN read their own order', ownRead === 'allowed', ownRead)
+
+    // ── 9. staff accounts ──
+    step('9. STAFF ACCOUNTS — roles come from the staff list')
+    // A stranger makes their own Firebase login (anyone can) — they must get nothing
+    const outsider = initializeApp(config, 'outsider')
+    const outAuth = getAuth(outsider)
+    const OUT_EMAIL = 'zz-not-staff@hapag.test', OUT_PASS = 'zz-test-pass-123'
+    try { await signInWithEmailAndPassword(outAuth, OUT_EMAIL, OUT_PASS) }
+    catch { await createUserWithEmailAndPassword(outAuth, OUT_EMAIL, OUT_PASS) }
+    const outDb = getFirestore(outsider)
+    const outUid = outAuth.currentUser.uid
+    created.outsider = outsider
+    const selfPromote = await attempt(() => setDoc(doc(outDb, 'staff', outUid), { name: 'Me', email: OUT_EMAIL, role: 'admin', active: true, createdAt: Date.now() }))
+    check('a stranger with a login CANNOT make themselves admin', selfPromote === 'denied', selfPromote)
+    const outOrders = await attempt(() => getDocs(collection(outDb, 'orders')))
+    check('a login without a staff profile CANNOT read orders', outOrders === 'denied', outOrders)
+    const outStaff = await attempt(() => getDocs(collection(outDb, 'staff')))
+    check('a login without a staff profile CANNOT read the staff list', outStaff === 'denied', outStaff)
+    const cashierWrites = await attempt(() => setDoc(doc(cashier.db, 'staff', outUid), { name: 'X', email: OUT_EMAIL, role: 'admin', active: true, createdAt: Date.now() }))
+    check('a cashier CANNOT add or promote staff', cashierWrites === 'denied', cashierWrites)
+
+    // Owner adds them as a DEACTIVATED cashier → still nothing; reactivate → cashier powers
+    await setDoc(doc(admin.db, 'staff', outUid), { name: 'ZZ Test Staff', email: OUT_EMAIL, role: 'cashier', active: false, createdAt: Date.now() })
+    created.outProfile = outUid
+    const inactiveRead = await attempt(() => getDocs(collection(outDb, 'orders')))
+    check('a DEACTIVATED staff member CANNOT read orders', inactiveRead === 'denied', inactiveRead)
+    await updateDoc(doc(admin.db, 'staff', outUid), { active: true })
+    const activeRead = await attempt(() => getDocs(collection(outDb, 'orders')))
+    check('the same person, reactivated as cashier, CAN read orders', activeRead === 'allowed', activeRead)
+    const ownProfile = await attempt(() => getDoc(doc(outDb, 'staff', outUid)))
+    check('staff CAN read their own profile (needed at login)', ownProfile === 'allowed', ownProfile)
+
+    const adminUid = getAuth(admin.app).currentUser.uid
+    const selfDeactivate = await attempt(() => updateDoc(doc(admin.db, 'staff', adminUid), { active: false }))
+    check('an admin CANNOT deactivate themselves (no lock-out)', selfDeactivate === 'denied', selfDeactivate)
+    const selfDemote = await attempt(() => updateDoc(doc(admin.db, 'staff', adminUid), { role: 'cashier' }))
+    check('an admin CANNOT demote themselves', selfDemote === 'denied', selfDemote)
   } catch (e) {
     log('\nUNEXPECTED ERROR: ' + (e.stack || e))
   } finally {
@@ -247,6 +284,8 @@ async function snapshotScreens(db, orderId, tableId, label) {
       if (created.menu) await deleteDoc(doc(admin.db, 'menu', created.menu))
       if (created.table) await deleteDoc(doc(admin.db, 'tables', created.table))
       if (created.secret) await deleteDoc(doc(admin.db, 'tableSecrets', '99'))
+      if (created.outProfile) await deleteDoc(doc(admin.db, 'staff', created.outProfile))
+      if (created.outsider) await deleteApp(created.outsider)
       log(`   removed ${created.orders.length} orders, ${created.menu ? 1 : 0} dish, ${created.table ? 1 : 0} table`)
     } catch (e) { log('   CLEANUP FAILED: ' + e.message) }
     for (const r of [admin, cashier, kitchen, customer, stranger]) if (r) await deleteApp(r.app)

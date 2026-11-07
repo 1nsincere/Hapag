@@ -11,7 +11,8 @@ import {
   addDoc,
   deleteDoc,
   writeBatch,
-  where
+  where,
+  runTransaction
 } from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
@@ -338,13 +339,22 @@ export function listenToTableTokens(callback: (tokens: Record<number, string>) =
   ))
 }
 
-/** Admin only — create tokens for tables that don't have one yet */
+/**
+ * Admin only — create codes for tables that don't have one yet.
+ * Each code is created in a transaction that re-checks the database, so a code
+ * that already exists is never overwritten (two admin screens open at once, or
+ * a code created a moment ago elsewhere). Overwriting would silently break the
+ * QR codes already printed for that table.
+ */
 export async function ensureTableTokens(tableNumbers: number[], existing: Record<number, string>) {
   const missing = tableNumbers.filter(n => n > 0 && !existing[n])
-  if (!missing.length) return
-  const batch = writeBatch(db)
-  missing.forEach(n => batch.set(doc(db, SECRETS_COL, String(n)), { token: newToken(), createdAt: Date.now() }))
-  await batch.commit()
+  for (const n of missing) {
+    const ref = doc(db, SECRETS_COL, String(n))
+    await runTransaction(db, async tx => {
+      if ((await tx.get(ref)).exists()) return
+      tx.set(ref, { token: newToken(), createdAt: Date.now() })
+    })
+  }
 }
 
 /** Admin only — issue a new code (old printed QR codes stop working) */

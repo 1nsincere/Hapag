@@ -5,25 +5,15 @@ import CredentialsProvider from 'next-auth/providers/credentials'
  * ─── User Roles ──────────────────────────────────────────────────────────────
  *
  * admin    → /dashboard, /admin/*, /pos, /kitchen   (full access)
- * cashier  → /pos only  (formerly /cashier)
- * kitchen  → /kitchen only
- * customer → /menu, /order, /status/*  (public, no login required)
+ * cashier  → /pos (/cashier)
+ * kitchen  → /kitchen
+ * customer → /menu, /status/*  (public, no login — anonymous Firebase session)
+ *
+ * Staff accounts are managed by the owner in Admin → Staff. Each person has a
+ * Firebase Auth login (Firebase stores and checks the password) plus a profile
+ * in Firestore `staff/{uid}` with their name, role and active flag.
  */
 export type UserRole = 'admin' | 'cashier' | 'kitchen'
-
-/**
- * ─── Credentials Store ──────────────────────────────────────────────────────
- *
- * In production, replace this with a real database (Firebase Firestore,
- * PostgreSQL, etc.).  Passwords should be hashed with bcrypt.
- *
- * For now, seeded demo accounts make it easy to test all roles.
- */
-const USERS: { id: string; email: string; password: string; name: string; role: UserRole }[] = [
-  { id: '1', email: 'admin@restaurant.com',   password: 'admin123',   name: 'Admin',       role: 'admin' },
-  { id: '2', email: 'cashier@restaurant.com', password: 'cashier123', name: 'Cashier',     role: 'cashier' },
-  { id: '3', email: 'kitchen@restaurant.com', password: 'kitchen123', name: 'Kitchen Chef', role: 'kitchen' },
-]
 
 /** Role → default landing page */
 export const ROLE_LANDING: Record<UserRole, string> = {
@@ -35,27 +25,40 @@ export const ROLE_LANDING: Record<UserRole, string> = {
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
-      name: 'Credentials',
+      name: 'Staff',
       credentials: {
-        email:    { label: 'Email',    type: 'email'    },
-        password: { label: 'Password', type: 'password' },
+        idToken: { label: 'Firebase ID token', type: 'text' },
       },
+      /**
+       * The login page signs in to Firebase first and sends the ID token.
+       * We verify it with Google and look up the person's staff profile.
+       * No passwords ever reach this code.
+       */
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
+        if (!credentials?.idToken) return null
+        // Imported lazily so the edge/proxy bundle never pulls in jose/fetch helpers
+        const { verifyFirebaseIdToken, fetchStaffProfile, BOOTSTRAP_ROLES } = await import('./staffAuth')
+        try {
+          const { uid, email } = await verifyFirebaseIdToken(credentials.idToken)
+          const profile = await fetchStaffProfile(uid, credentials.idToken)
 
-        const user = USERS.find(
-          u => u.email === credentials.email && u.password === credentials.password,
-        )
-
-        if (!user) return null
-
-        // Return only serialisable fields — NextAuth stores this in the JWT
-        return { id: user.id, email: user.email, name: user.name, role: user.role }
+          if (profile) {
+            if (!profile.active) return null // deactivated by the owner
+            return { id: uid, email, name: profile.name || email, role: profile.role }
+          }
+          // No profile yet → only the original demo accounts may sign in (bootstrap)
+          const bootstrap = BOOTSTRAP_ROLES[email]
+          if (bootstrap) return { id: uid, email, name: email.split('@')[0], role: bootstrap }
+          return null
+        } catch (err) {
+          console.error('[auth] staff login rejected:', (err as Error).message)
+          return null
+        }
       },
     }),
   ],
 
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 12 * 60 * 60 }, // one long shift
 
   pages: {
     signIn: '/login',
@@ -65,17 +68,12 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     /** Persist the user's role inside the JWT token */
     async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role
-      }
+      if (user) token.role = user.role
       return token
     },
-
     /** Expose the role on the client-side session object */
     async session({ session, token }) {
-      if (session.user) {
-        session.user.role = token.role
-      }
+      if (session.user) session.user.role = token.role
       return session
     },
   },

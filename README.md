@@ -33,7 +33,7 @@ firebase deploy --only firestore:rules
 | `/kitchen` | Kitchen, admin |
 | `/admin` (`/dashboard`) | Admin |
 
-Demo staff accounts are defined in `lib/auth.ts` (development only — see roadmap).
+Staff log in with their own accounts, managed in **Admin → Staff**. The demo accounts (`admin@` / `cashier@` / `kitchen@restaurant.com`, passwords `admin123` / `cashier123` / `kitchen123`) are for testing — change or deactivate them before going live.
 
 ## Testing
 
@@ -41,8 +41,8 @@ Run these before showing the app to anyone or after changing code:
 
 ```bash
 npm run seed:demo    # demo menu, tables, floors and orders (only touches demo data)
-npm run test:rules   # 38 checks of the database security rules, as each role
-npm run test:e2e     # clicks through every screen in Edge: order → accept → pay → kitchen → serve → clear (needs npm run dev)
+npm run test:rules   # 47 checks of the database security rules, as each role
+npm run test:e2e     # 42-step click-through in Edge: ordering, cashier, kitchen, admin, staff accounts (needs npm run dev)
 ```
 
 Both tests clean up the data they create.

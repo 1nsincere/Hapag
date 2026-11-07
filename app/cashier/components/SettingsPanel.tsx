@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { Transaction } from '@/app/cashier/context/CartContext'
-import { signOut as nextAuthSignOut } from 'next-auth/react'
+import { signOut as nextAuthSignOut, useSession } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 
@@ -13,15 +13,11 @@ interface SettingsPanelProps {
   recentTransactions: Transaction[]
 }
 
-// Stable staff list (in a real app this would come from auth/Firebase)
-const STAFF_LIST = ['Maria Santos', 'Juan dela Cruz', 'Ana Reyes', 'Carlo Mendoza']
 
 export function SettingsPanel({ open, onClose, recentTransactions }: SettingsPanelProps) {
-  const [cashierName, setCashierName] = useState<string>(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('cashierName') ?? STAFF_LIST[0]
-    return STAFF_LIST[0]
-  })
-  const [showSwitchStaff, setShowSwitchStaff] = useState(false)
+  // The person actually logged in (from their staff profile) — switching cashier = End shift + log in
+  const { data: session } = useSession()
+  const cashierName = session?.user?.name || session?.user?.email || 'Cashier'
   const [printerEnabled, setPrinterEnabled] = useState<boolean>(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('printerEnabled') !== 'false'
     return true
@@ -29,10 +25,6 @@ export function SettingsPanel({ open, onClose, recentTransactions }: SettingsPan
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Persist settings
-  useEffect(() => {
-    localStorage.setItem('cashierName', cashierName)
-  }, [cashierName])
-
   useEffect(() => {
     localStorage.setItem('printerEnabled', String(printerEnabled))
   }, [printerEnabled])
@@ -85,35 +77,10 @@ export function SettingsPanel({ open, onClose, recentTransactions }: SettingsPan
             </div>
             <div>
               <p className="font-semibold text-on-surface text-sm">{cashierName}</p>
-              <p className="text-xs text-on-surface-variant">Active Cashier</p>
+              <p className="text-xs text-on-surface-variant">Signed in · {session?.user?.role ?? 'staff'}</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowSwitchStaff(v => !v)}
-            className="text-xs text-primary font-medium hover:underline"
-          >
-            Switch
-          </button>
         </div>
-
-        {/* Staff switcher */}
-        {showSwitchStaff && (
-          <div className="mt-3 space-y-1">
-            {STAFF_LIST.map(name => (
-              <button
-                key={name}
-                onClick={() => { setCashierName(name); setShowSwitchStaff(false) }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  name === cashierName
-                    ? 'bg-primary text-white font-medium'
-                    : 'hover:bg-surface-container-high text-on-surface'
-                }`}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Shift Summary */}

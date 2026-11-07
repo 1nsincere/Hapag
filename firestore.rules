@@ -10,11 +10,33 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.firebase.sign_in_provider == 'anonymous'; 
     }
     
-    // Safely check role based on known staff emails for the prototype
-    function isAdmin() { return isAuthenticated() && request.auth.token.email == 'admin@restaurant.com'; }
-    function isCashier() { return isAuthenticated() && request.auth.token.email == 'cashier@restaurant.com'; }
-    function isKitchen() { return isAuthenticated() && request.auth.token.email == 'kitchen@restaurant.com'; }
-    function isAdminOrCashier() { return isAdmin() || isCashier(); }
+    // ─── Staff roles ─────────────────────────────────────
+    // Each staff member has a profile at staff/{uid}: { name, email, role, active }.
+    // The owner manages them in Admin → Staff. A deactivated profile has no role.
+    function staffPath() { return /databases/$(database)/documents/staff/$(request.auth.uid); }
+    function hasStaffProfile() { return isAuthenticated() && !isAnonymous() && exists(staffPath()); }
+
+    // Bootstrap only: the original demo accounts keep their role until a profile
+    // exists for them (mirrors BOOTSTRAP_ROLES in lib/staffAuth.ts).
+    function legacyRole() {
+      let email = request.auth.token.get('email', '');
+      return email == 'admin@restaurant.com' ? 'admin'
+        : email == 'cashier@restaurant.com' ? 'cashier'
+        : email == 'kitchen@restaurant.com' ? 'kitchen'
+        : '';
+    }
+
+    function role() {
+      return !isAuthenticated() || isAnonymous() ? ''
+        : hasStaffProfile()
+          ? (get(staffPath()).data.get('active', true) == true ? get(staffPath()).data.role : '')
+          : legacyRole();
+    }
+
+    function isAdmin() { return role() == 'admin'; }
+    function isCashier() { return role() == 'cashier'; }
+    function isKitchen() { return role() == 'kitchen'; }
+    function isAdminOrCashier() { return role() in ['admin', 'cashier']; }
 
     // ─── MENU ───────────────────────────────────────────
     match /menu/{item} {
@@ -113,9 +135,17 @@ service cloud.firestore {
     }
 
     // ─── USERS ──────────────────────────────────────────
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create, update, delete: if isAdmin();
+    // ─── STAFF PROFILES ─────────────────────────────────
+    // Staff can read their own profile (used at login); the owner manages everyone.
+    // An admin can never demote or deactivate themselves (no accidental lock-out).
+    match /staff/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAdmin() &&
+        request.resource.data.role in ['admin', 'cashier', 'kitchen'] &&
+        request.resource.data.active is bool &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+        (uid != request.auth.uid || (request.resource.data.role == 'admin' && request.resource.data.active == true));
+      allow delete: if isAdmin() && uid != request.auth.uid;
     }
 
     match /{document=**} {

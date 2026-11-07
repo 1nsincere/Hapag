@@ -40,6 +40,8 @@ async function staff(browser, email, pass, dest) {
   await page.waitForTimeout(2500)
   return page
 }
+// Accept the next confirm() box — clears any leftover listener first
+const acceptNextDialog = page => { page.removeAllListeners('dialog'); page.once('dialog', d => d.accept().catch(() => {})) }
 const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
 
 ;(async () => {
@@ -178,7 +180,7 @@ const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
     await cashier.getByRole('button', { name: /^.*Tables/ }).first().click()
     await cashier.getByRole('button', { name: /Table 1,/ }).first().click()
     await cashier.getByText('Everything is served and paid').waitFor({ timeout: 15000 })
-    cashier.once('dialog', d => d.accept())
+    acceptNextDialog(cashier)
     await cashier.getByRole('button', { name: /Clear table/ }).click()
     await cashier.getByRole('button', { name: 'Seat guests' }).waitFor({ timeout: 10000 })
     await cashier.waitForTimeout(2000)
@@ -265,7 +267,7 @@ const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
   })
   await step('cashier: End shift signs out to the login screen', async () => {
     await cashier.getByRole('button', { name: /settings/i }).last().click()
-    cashier.once('dialog', d => d.accept())
+    acceptNextDialog(cashier)
     await cashier.getByRole('button', { name: /end shift/i }).click()
     await cashier.waitForURL(/\/login/, { timeout: 20000 })
   })
@@ -282,7 +284,7 @@ const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
     await admin.getByRole('button', { name: /^Add dish/ }).click()
     await admin.getByText('ZZ Sweep Dish').first().waitFor({ timeout: 15000 })
     const card = admin.locator('div.rounded-2xl').filter({ hasText: 'ZZ Sweep Dish' }).first()
-    admin.once('dialog', d => d.accept())
+    acceptNextDialog(admin)
     await card.getByRole('button', { name: /delete/i }).first().click()
     const confirm = admin.getByRole('button', { name: /^(Delete|Yes, delete|Confirm)/ }).last()
     if (await confirm.isVisible().catch(() => false)) await confirm.click()
@@ -315,6 +317,62 @@ const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
     await admin.getByRole('button', { name: /Ground Floor/ }).first().waitFor({ timeout: 30000 })
     await admin.getByRole('button', { name: 'System Settings' }).click()
     await admin.getByText('QR code address').waitFor()
+  })
+
+  // ══ STAFF ACCOUNTS ══ (one fixed test login, reused across runs)
+  const STAFF_EMAIL = 'zz-sweep-cashier@hapag.test', STAFF_PASS = 'sweep-pass-123'
+  const staffRow = () => admin.locator('li').filter({ hasText: STAFF_EMAIL }).first()
+  await step('admin: add a cashier on the Staff page (or reactivate the test one)', async () => {
+    await admin.getByRole('button', { name: 'Staff' }).click()
+    await admin.getByText('Add a staff member').waitFor()
+    await admin.waitForTimeout(1500)
+    if (await staffRow().count()) {
+      const reactivate = staffRow().getByRole('button', { name: 'Reactivate' })
+      if (await reactivate.count()) { await reactivate.click(); await staffRow().getByRole('button', { name: 'Deactivate' }).waitFor() }
+      return
+    }
+    await admin.getByPlaceholder('e.g. Maria Santos').fill('ZZ Sweep Cashier')
+    await admin.getByPlaceholder('maria@yourrestaurant.com').fill(STAFF_EMAIL)
+    await admin.getByPlaceholder('At least 6 characters').fill(STAFF_PASS)
+    await admin.getByRole('radio', { name: /Cashier/ }).click()
+    await admin.getByRole('button', { name: /Add staff member/ }).click()
+    await admin.getByText(/can log in now/).waitFor({ timeout: 20000 })
+    await staffRow().waitFor()
+  })
+  const loginAs = async (email, pass) => {
+    const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
+    watch(page, 'staff-login')
+    await page.goto(`${BASE}/login`, { waitUntil: 'load' })
+    await page.fill('input[type=email]', email); await page.fill('input[type=password]', pass)
+    await page.click('button[type=submit]')
+    return page
+  }
+  await step('new cashier logs in and lands on the cashier screen', async () => {
+    const page = await loginAs(STAFF_EMAIL, STAFF_PASS)
+    await page.waitForURL(/\/(pos|cashier)/, { timeout: 40000 })
+    await page.getByText('Cashier POS').waitFor({ timeout: 20000 })
+    await page.context().close()
+  })
+  await step('new cashier CANNOT open the admin page', async () => {
+    const page = await loginAs(STAFF_EMAIL, STAFF_PASS)
+    await page.waitForURL(/\/(pos|cashier)/, { timeout: 40000 })
+    await page.goto(`${BASE}/admin`, { waitUntil: 'load' })
+    await page.waitForURL(/\/unauthorized/, { timeout: 20000 })
+    await page.context().close()
+  })
+  await step('admin deactivates them → their login is refused', async () => {
+    acceptNextDialog(admin)
+    await staffRow().getByRole('button', { name: 'Deactivate' }).click()
+    await staffRow().getByRole('button', { name: 'Reactivate' }).waitFor({ timeout: 15000 })
+    const page = await loginAs(STAFF_EMAIL, STAFF_PASS)
+    await page.getByText(/isn’t set up as staff, or it was deactivated/).waitFor({ timeout: 40000 })
+    if (!page.url().includes('/login')) throw new Error('deactivated user got in: ' + page.url())
+    await page.context().close()
+  })
+  await step('wrong password shows a clear message', async () => {
+    const page = await loginAs('cashier@restaurant.com', 'definitely-wrong')
+    await page.getByText('Wrong email or password').waitFor({ timeout: 30000 })
+    await page.context().close()
   })
 
   console.log(`\n${results.filter(r => r[0]).length}/${results.length} steps passed`)

@@ -6,6 +6,7 @@ import { useSession, signOut as nextAuthSignOut } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import FloorPlanEditor from './components/FloorPlanEditor'
+import StaffManager from './components/StaffManager'
 import { StaffGuide } from '@/app/components/StaffGuide'
 import { compressMenuPhoto } from '@/lib/imageCompress'
 import { useQrBaseUrl, cleanBaseUrl, type QrBaseSource } from '@/lib/useQrBaseUrl'
@@ -80,7 +81,7 @@ const TAG_CARD_STYLES: Record<MenuItemTag, string> = {
   vegan:      'bg-emerald-100 text-emerald-800',
 }
 
-type AdminView = 'insights' | 'menu' | 'qr' | 'floor' | 'settings'
+type AdminView = 'insights' | 'menu' | 'qr' | 'floor' | 'staff' | 'settings'
 
 // ─── QR code address (automatic, with optional override) ───────────────────────
 const QR_SOURCE_TEXT: Record<QrBaseSource, string> = {
@@ -440,6 +441,7 @@ export default function AdminPage() {
               { key: 'menu', icon: 'restaurant_menu', label: 'Menu Manager' },
               { key: 'qr', icon: 'table_restaurant', label: 'Table Management' },
               { key: 'floor', icon: 'floor', label: 'Floor Plan' },
+              { key: 'staff', icon: 'badge', label: 'Staff' },
               { key: 'settings', icon: 'settings', label: 'System Settings' },
             ] as { key: AdminView; icon: string; label: string }[]).map(item => (
               <button key={item.key} onClick={() => { setView(item.key); setMobileSidebar(false) }}
@@ -834,6 +836,8 @@ export default function AdminPage() {
           )}
 
           {view === 'floor' && <FloorPlanEditor tables={tables} />}
+
+          {view === 'staff' && <StaffManager currentEmail={session?.user?.email ?? ''} currentName={session?.user?.name ?? ''} />}
 
           {view === 'settings' && <SettingsView initialSettings={settings} />}
         </main>

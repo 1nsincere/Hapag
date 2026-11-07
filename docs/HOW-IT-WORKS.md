@@ -41,10 +41,21 @@ Alerts only appear when someone has to do something, and stay until it's done:
 
 They chime on arrival and every minute while a customer is waiting.
 
+## Staff accounts (Admin → Staff)
+
+- **Everyone gets their own login.** The owner adds each person with their name, email, a temporary password and a role:
+  - **Admin** — everything (menu, tables, floor plan, staff, settings, plus cashier and kitchen)
+  - **Cashier** — the cashier screen
+  - **Kitchen** — the kitchen screen
+- **Someone leaves?** Tap **Deactivate** — they can't log in or use any screen from that moment. **Reactivate** brings them back.
+- **Forgot a password?** Tap **Forgot password?** on the login screen (or **Send password reset** on the Staff page) — Firebase emails a secure link.
+- **Change your own password** at the bottom of the Staff page. Do this first for the demo admin (`admin123`).
+- Passwords are stored by Firebase, never in the app. An admin can't demote or deactivate themselves, so the restaurant can't get locked out.
+
 ## Cashier tips
 
 - **Show served / Hide served** (QR Orders tab) — served orders are hidden by default to keep the list short. Nothing is deleted.
-- **End shift** (gear icon) — shows the shift total and signs you out so the next cashier logs in with their own account.
+- **End shift** (gear icon) — shows the shift total for the person logged in, then signs them out so the next cashier logs in with their own account.
 - If several alerts arrive at once, tap **Minimise** — they shrink to a pill and pop back open when something new arrives. Repeated "Call staff" taps from one table show as one card (×2, ×3…).
 
 ## Screens

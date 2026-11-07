@@ -218,6 +218,28 @@ async function main() {
 
   const now = Date.now()
 
+  // Staff profiles for the built-in demo accounts (so they show up in Admin → Staff
+  // and get their role from the staff list). Skips any account whose password was changed.
+  const DEMO_STAFF = [
+    { email: 'admin@restaurant.com', password: 'admin123', name: 'Owner (demo admin)', role: 'admin' },
+    { email: 'cashier@restaurant.com', password: 'cashier123', name: 'Demo Cashier', role: 'cashier' },
+    { email: 'kitchen@restaurant.com', password: 'kitchen123', name: 'Demo Kitchen', role: 'kitchen' },
+  ]
+  let profiles = 0
+  for (const s of DEMO_STAFF) {
+    const probe = initializeApp(app.options, `probe-${s.role}`)
+    try {
+      const cred = await signInWithEmailAndPassword(getAuth(probe), s.email, s.password)
+      const ref = doc(db, 'staff', cred.user.uid)
+      if (!(await getDoc(ref)).exists()) {
+        await setDoc(ref, { name: s.name, email: s.email, role: s.role, active: true, createdAt: now, updatedAt: now })
+        profiles++
+      }
+    } catch { /* password changed or account missing — leave it alone */ }
+    finally { await deleteApp(probe) }
+  }
+  if (profiles) console.log(`Created ${profiles} demo staff profile(s)`)
+
   // Settings — only created if the restaurant hasn't saved its own yet
   const settingsRef = doc(db, 'settings', 'general')
   if (!(await getDoc(settingsRef)).exists()) {
