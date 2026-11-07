@@ -13,7 +13,10 @@ import { HistoryPanel } from '@/app/cashier/components/HistoryPanel'
 import { SettingsPanel } from '@/app/cashier/components/SettingsPanel'
 import { TableOrderHistoryModal } from '@/app/cashier/components/TableOrderHistoryModal'
 import FloorPlanView from '@/app/components/floorplan/FloorPlanView'
-import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS } from '@/lib/data'
+import { AlertStack } from '@/app/cashier/components/AlertStack'
+import { StaffGuide } from '@/app/components/StaffGuide'
+import { stageOf, TONE_CLASSES } from '@/lib/orderFlow'
+import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS, markOrderServed, listenToOpenServiceRequests, resolveServiceRequest, ServiceRequest } from '@/lib/data'
 
 function CashierContent() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,20 +53,18 @@ function CashierContent() {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showTableHistory, setShowTableHistory] = useState<Table | null>(null)
   const [tableView, setTableView] = useState<'map' | 'list'>('map')
+  // Left side shows either the menu grid or a large floor map
+  const [leftView, setLeftView] = useState<'menu' | 'floor'>('menu')
+  const [guideOpen, setGuideOpen] = useState(false)
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
+  useEffect(() => listenToOpenServiceRequests(setServiceRequests), [])
 
   // QR Payment modal state
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash')
 
   const { addTransaction, recentTransactions, items: cartItems } = useCart()
 
-  const getOrderStatusLabel = useCallback((order: Order) => {
-    if (order.status === 'preparing' && order.paymentStatus === 'paid') return 'Paid'
-    if (order.status === 'pending') return 'Awaiting acceptance'
-    if (order.status === 'in-progress') return 'In progress'
-    if (order.status === 'ready') return 'Ready'
-    if (order.status === 'served') return 'Served'
-    return 'Preparing'
-  }, [])
+  const getOrderStatusLabel = useCallback((order: Order) => stageOf(order.status).label, [])
 
   // Customer order prices come from their phone. Until orders are created
   // server-side, flag anything that doesn't match the live menu so the
@@ -126,6 +127,18 @@ function CashierContent() {
     const timer = setInterval(() => setNow(Date.now()), 60000)
     return () => clearInterval(timer)
   }, [])
+
+  // Occupied tables whose orders (since they were seated) are all served & paid
+  const readyToClear = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of tablesWithOptimistic) {
+      if (t.status !== 'occupied') continue
+      const since = t.occupiedAt ?? 0
+      const tableOrders = orders.filter(o => o.tableNumber === t.tableNumber && o.createdAt >= since)
+      if (tableOrders.length && tableOrders.every(o => o.status === 'served' && o.paymentStatus === 'paid')) set.add(t.id)
+    }
+    return set
+  }, [tablesWithOptimistic, orders])
 
   const selectedTable = useMemo<Table | null>(
     () => tablesWithOptimistic.find(t => t.id === selectedTableId) ?? null,
@@ -237,6 +250,15 @@ function CashierContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* ? How it works */}
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              aria-label="How it works"
+            >
+              <span className="material-symbols-outlined">help</span>How it works
+            </button>
+
             {/* 🔔 Bell — Notifications */}
             <button
               onClick={() => { setNotifOpen(v => !v); setSettingsOpen(false); setHistoryOpen(false) }}
@@ -305,6 +327,18 @@ function CashierContent() {
       `}</style>
 
       {/* ── Header Panels ───────────────────────────────────────────────── */}
+      <AlertStack
+        orders={orders}
+        requests={serviceRequests}
+        now={now}
+        hasPriceIssue={o => checkOrderPrices(o).hasIssue}
+        onAccept={o => updateOrderStatus(o.id, 'accepted')}
+        onMarkServed={o => markOrderServed(o.id)}
+        onResolveRequest={r => resolveServiceRequest(r.id)}
+        onReview={() => setActiveTab('orders')}
+      />
+      <StaffGuide open={guideOpen} onClose={() => setGuideOpen(false)} role="cashier" />
+
       <NotificationsPanel
         open={notifOpen}
         onClose={() => setNotifOpen(false)}
@@ -328,6 +362,40 @@ function CashierContent() {
       <div className="flex flex-col lg:flex-row flex-1 min-h-0">
         {/* Left Panel — independently scrollable menu grid */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 lg:p-6">
+          {/* Menu ⇄ Floor plan — the big map borrows the menu's space only when needed */}
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex bg-white rounded-xl p-1 border border-surface-container-high" role="tablist" aria-label="Left panel">
+              {([['menu', 'restaurant_menu', 'Menu'], ['floor', 'floor', 'Floor plan']] as const).map(([key, icon, label]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={leftView === key}
+                  onClick={() => setLeftView(key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors ${leftView === key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{icon}</span>{label}
+                  {key === 'floor' && occupiedCount > 0 && (
+                    <span className={`text-xs px-1.5 rounded-full ${leftView === key ? 'bg-white/25' : 'bg-amber-100 text-amber-800'}`}>{occupiedCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {leftView === 'floor' && (
+              <p className="hidden md:block text-sm text-on-surface-variant">Tap a table to see its orders and actions on the right.</p>
+            )}
+          </div>
+
+          {leftView === 'floor' ? (
+            <FloorPlanView
+              tables={tablesWithOptimistic}
+              selectedTableId={selectedTableId}
+              onSelectTable={id => { setSelectedTableId(id); setActiveTab('tables') }}
+              now={now}
+              readyToClear={readyToClear}
+              onShowList={() => { setLeftView('menu'); setActiveTab('tables'); setTableView('list') }}
+            />
+          ) : (
+          <>
           {/* Search & Filters */}
           <div className="mb-6 space-y-4">
             {/* Search */}
@@ -391,6 +459,8 @@ function CashierContent() {
                 </button>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
 
@@ -494,7 +564,7 @@ function CashierContent() {
                     <div className="space-y-3">
                       <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                        Awaiting Acceptance
+                        New orders — tap Accept
                       </h3>
                       {orders.filter(o => o.status === 'pending').map(order => {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
@@ -561,7 +631,7 @@ function CashierContent() {
                     <div className="space-y-3">
                       <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                        Awaiting Payment
+                        Awaiting payment
                       </h3>
                       {orders.filter(o => o.status === 'accepted').map(order => {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
@@ -623,7 +693,7 @@ function CashierContent() {
                   {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted').length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">
-                        Acknowledged
+                        In the kitchen &amp; served
                       </h3>
                       {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted').map(order => {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
@@ -639,7 +709,7 @@ function CashierContent() {
                               </div>
                               <div className="text-right">
                                 <span className="text-sm font-mono text-primary block">₱{order.total.toFixed(2)}</span>
-                                <span className="text-[10px] uppercase font-bold text-green-600 tracking-wider">{getOrderStatusLabel(order)}</span>
+                                <span className={`inline-block mt-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${TONE_CLASSES[stageOf(order.status).tone].chip}`}>{getOrderStatusLabel(order)}</span>
                               </div>
                             </div>
                             <div className="space-y-1 mb-2">
@@ -695,13 +765,30 @@ function CashierContent() {
               </div>
 
               {tableView === 'map' ? (
-                <FloorPlanView
-                  tables={tablesWithOptimistic}
-                  selectedTableId={selectedTableId}
-                  onSelectTable={setSelectedTableId}
-                  now={now}
-                  onShowList={() => setTableView('list')}
-                />
+                leftView === 'floor' ? (
+                  <div className="rounded-xl border border-dashed border-outline-variant p-4 text-center text-sm text-on-surface-variant">
+                    <span className="material-symbols-outlined block text-3xl mb-1">west</span>
+                    The floor plan is open on the left.
+                    <button onClick={() => setLeftView('menu')} className="block mx-auto mt-2 font-semibold text-primary">Back to menu</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <FloorPlanView
+                      tables={tablesWithOptimistic}
+                      selectedTableId={selectedTableId}
+                      onSelectTable={setSelectedTableId}
+                      now={now}
+                      readyToClear={readyToClear}
+                      onShowList={() => setTableView('list')}
+                    />
+                    <button
+                      onClick={() => setLeftView('floor')}
+                      className="w-full h-10 rounded-xl bg-white border border-outline-variant text-sm font-semibold text-on-surface flex items-center justify-center gap-2 hover:border-primary hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">open_in_full</span>Expand floor plan
+                    </button>
+                  </div>
+                )
               ) : (
               <>
               {/* FIX 7: Responsive grid — 1 col on very small screens, 2 cols from
@@ -818,45 +905,62 @@ function CashierContent() {
                   })()}
 
                   <div className="space-y-2">
+                    {/* Table actions — each state only offers what makes sense next */}
                     {selectedTable.status === 'available' && (
+                      <>
                       <button
                         onClick={() => handleTableStatusChange(selectedTable.id, 'occupied')}
                         className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         <span className="material-symbols-outlined">restaurant</span>
-                        Seat Table
+                        Seat guests
                       </button>
+                      <button
+                        onClick={() => handleTableStatusChange(selectedTable.id, 'reserved')}
+                        className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined">event_seat</span>
+                        Reserve
+                      </button>
+                      </>
                     )}
                     {selectedTable.status === 'occupied' && (
                       <>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to mark Table ${selectedTable.tableNumber} as available?`)) {
+                        {readyToClear.has(selectedTable.id) && (
+                          <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                            Everything is served and paid — clear the table once the guests leave.
+                          </p>
+                        )}
+                      <button
+                        onClick={() => {
+                            if (confirm(`Clear Table ${selectedTable.tableNumber}? Only do this after the guests have left.`)) {
                               handleTableStatusChange(selectedTable.id, 'available')
                             }
                           }}
-                          className="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                        >
-                          <span className="material-symbols-outlined">check_circle</span>
-                          Free Table (Manual)
-                        </button>
-                        <button
-                          onClick={() => handleTableStatusChange(selectedTable.id, 'reserved')}
-                          className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                        >
-                          <span className="material-symbols-outlined">event_seat</span>
-                          Reserve Table
-                        </button>
+                        className="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined">cleaning_services</span>
+                        Clear table (guests left)
+                      </button>
                       </>
                     )}
                     {selectedTable.status === 'reserved' && (
+                      <>
                       <button
                         onClick={() => handleTableStatusChange(selectedTable.id, 'occupied')}
                         className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         <span className="material-symbols-outlined">restaurant</span>
-                        Seat Reserved Guest
+                        Seat reserved guests
                       </button>
+                      <button
+                        onClick={() => handleTableStatusChange(selectedTable.id, 'available')}
+                        className="w-full py-2 px-4 bg-zinc-500 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined">event_busy</span>
+                        Cancel reservation
+                      </button>
+                      </>
                     )}
 
                     {/* View Order History Button */}
@@ -1149,13 +1253,11 @@ function CashierContent() {
                         if (paymentMethod === 'cash' && paymentReceived < payingOrder.total) return
                         setIsProcessingPayment(true)
                         try {
-                          const tableId = tablesWithOptimistic.find(t => t.tableNumber === payingOrder.tableNumber)?.id
                           await processPaymentAndActivateOrder(
                             payingOrder.id,
                             paymentMethod === 'digital' ? 'qrph' : paymentMethod,
                             0,
-                            payingOrder.total,
-                            tableId
+                            payingOrder.total
                           )
                           const transaction: Transaction = {
                             id: payingOrder.id,

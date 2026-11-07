@@ -240,7 +240,9 @@ async function main() {
 
   // Floors — demo floors go after any floors the restaurant already drew
   const existingFloors = (await getDocs(collection(db, 'floors'))).docs.map(d => d.data())
-  const startOrder = existingFloors.reduce((m, f) => Math.max(m, (f.order ?? 0) + 1), 0)
+  // Put demo floors BEFORE the restaurant's own floors (orders may go negative)
+  const minOrder = existingFloors.reduce((m, f) => Math.min(m, f.order ?? 0), 0)
+  const startOrder = existingFloors.length ? minOrder - FLOORS.length : 0
   const floorIds = []
   const floorBatch = writeBatch(db)
   FLOORS.forEach((f, i) => {
@@ -294,8 +296,9 @@ async function main() {
         ...(o.note ? { specialInstructions: o.note } : {}),
         createdAt: created, updatedAt: created + 120_000, demo: true,
       })
-      // Seated guests with an active (unserved) order occupy their table
-      if (o.table && tableIds[o.table] && o.status !== 'served') {
+      // Seated guests occupy their table until the cashier clears it
+      // Table 7 (served recently) stays occupied → shows "Ready to clear" on the map
+      if (o.table && tableIds[o.table] && (o.status !== 'served' || o.ago < 60)) {
         orderBatch.update(doc(db, 'tables', tableIds[o.table]), {
           status: 'occupied', currentOrderId: ref.id, occupiedAt: created, updatedAt: created,
         })

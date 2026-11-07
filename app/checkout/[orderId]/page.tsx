@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  listenToOrder, listenToSettings, listenToMenu, processPaymentAndActivateOrder, getTables,
+  listenToOrder, listenToSettings, listenToMenu, processPaymentAndActivateOrder,
   Order, AppSettings, DEFAULT_SETTINGS, MenuItem, CartItem,
 } from '@/lib/data'
 import {
@@ -184,15 +184,8 @@ export default function CheckoutPage() {
       // Simulated payment — replace with a real gateway in production
       await new Promise(r => setTimeout(r, 1500))
 
-      let tableId: string | undefined
-      try { tableId = sessionStorage.getItem(`tableId_${orderId}`) ?? undefined } catch { /* non-critical */ }
-      if (!tableId && order.tableNumber) {
-        const tables = await getTables()
-        tableId = tables.find(t => t.tableNumber === order.tableNumber)?.id
-      }
-
-      // Atomically: mark paid + persist final items + push order to the kitchen
-      await processPaymentAndActivateOrder(orderId, paymentMethod, tipAmount, grandTotal, tableId, { items: orderItems, total: subtotal })
+      // Mark paid + persist final items + send to the kitchen (table stays occupied)
+      await processPaymentAndActivateOrder(orderId, paymentMethod, tipAmount, grandTotal, { items: orderItems, total: subtotal })
 
       try { sessionStorage.removeItem(`tableId_${orderId}`) } catch { /* non-critical */ }
       router.push(`/confirmation/${orderId}`)

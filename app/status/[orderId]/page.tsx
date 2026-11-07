@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { listenToOrder, Order, OrderStatus } from '@/lib/data'
+import { listenToOrder, createServiceRequest, Order, OrderStatus } from '@/lib/data'
 import {
   peso, pad2, shortId, delay, DishImage, TopBar, BottomNav, LoadingScreen, MessageScreen,
 } from '@/app/components/customer/ui'
@@ -24,7 +24,21 @@ export default function StatusPage() {
   const orderId = params.orderId as string
   const [order, setOrder] = useState<Order | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [waiterCalled, setWaiterCalled] = useState(false)
+  const [callState, setCallState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+
+  // Sends a real "Call staff" request to the cashier screen (cooldown: 30s)
+  const callStaff = async (tableNumber: number) => {
+    if (callState === 'sending' || callState === 'sent') return
+    setCallState('sending')
+    try {
+      await createServiceRequest(tableNumber)
+      setCallState('sent')
+      setTimeout(() => setCallState('idle'), 30_000)
+    } catch {
+      setCallState('error')
+      setTimeout(() => setCallState('idle'), 4000)
+    }
+  }
 
   useEffect(() => {
     if (!orderId) return
@@ -125,12 +139,18 @@ export default function StatusPage() {
 
         <button
           type="button"
-          onClick={() => { setWaiterCalled(true); setTimeout(() => setWaiterCalled(false), 3000) }}
-          disabled={waiterCalled}
+          onClick={() => callStaff(order.tableNumber)}
+          disabled={callState === 'sending' || callState === 'sent'}
           className="hp-btn hp-btn-ghost hp-btn-block"
+          aria-live="polite"
         >
-          <span className="material-symbols-outlined">{waiterCalled ? 'check_circle' : 'notifications'}</span>
-          {waiterCalled ? 'A staff member is on the way' : 'Call staff'}
+          <span className={`material-symbols-outlined${callState === 'sending' ? ' hp-spin' : ''}`}>
+            {callState === 'sent' ? 'check_circle' : callState === 'sending' ? 'progress_activity' : callState === 'error' ? 'error' : 'notifications'}
+          </span>
+          {callState === 'sent' ? 'Staff notified — someone is coming'
+            : callState === 'sending' ? 'Calling…'
+            : callState === 'error' ? 'Couldn’t reach staff — try again'
+            : 'Call staff'}
         </button>
 
         {isPaid && (

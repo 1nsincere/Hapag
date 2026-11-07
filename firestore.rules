@@ -43,11 +43,13 @@ service cloud.firestore {
     match /tables/{table} {
       allow read: if true;
       allow create, delete: if isAdminOrCashier();
-      // Anonymous customers can safely update table occupancy ONLY
+      // A customer scanning the QR can only seat themselves (available → occupied).
+      // Freeing or reserving a table is staff-only.
       allow update: if isAdminOrCashier() || isKitchen() ||
         (isAnonymous() &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'currentOrderId', 'occupiedAt', 'updatedAt']) &&
-         request.resource.data.status in ['available', 'occupied', 'reserved']);
+         resource.data.status == 'available' &&
+         request.resource.data.status == 'occupied');
     }
 
     // ─── ORDERS ─────────────────────────────────────────
@@ -73,6 +75,16 @@ service cloud.firestore {
            ['status', 'paymentStatus', 'paymentMethod', 'tipAmount', 'grandTotal', 'paidAt', 'updatedAt', 'items', 'total']));
 
       allow delete: if isAdmin();
+    }
+
+    // ─── SERVICE REQUESTS ("Call staff") ─────────────────
+    // Customers can raise a request for their table; only staff can see/close them.
+    match /serviceRequests/{req} {
+      allow create: if (isAnonymous() || isAdminOrCashier()) &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.type == 'staff' &&
+        request.resource.data.tableNumber is int;
+      allow read, update, delete: if isAdminOrCashier() || isKitchen();
     }
 
     // ─── FLOOR PLANS ────────────────────────────────────

@@ -5,6 +5,8 @@ import { useSession, signOut as nextAuthSignOut } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
 import { playChime } from '@/lib/chime'
+import { stageOf } from '@/lib/orderFlow'
+import { StaffGuide } from '@/app/components/StaffGuide'
 import {
   collection, query, where, orderBy, limit,
   getDocs, startAfter, onSnapshot, QueryDocumentSnapshot
@@ -280,6 +282,7 @@ export default function KitchenPage() {
   const now = useNow(1000)
   const [orders, setOrders] = useState<Order[]>([])
   const [view, setView] = useState<KitchenView>('live')
+  const [guideOpen, setGuideOpen] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
 
   // ── MIGRATED: Tables state ────────────────────────────────────────────────
@@ -549,14 +552,9 @@ export default function KitchenPage() {
     }
     const nextStatus = nextMap[order.status]
     const prevStatus = order.status
-    const statusLabels: Record<OrderStatus, string> = {
-      'pending': 'Pending',
-      'accepted': 'Accepted',
-      'preparing': 'Preparing',
-      'in-progress': 'In-Progress',
-      'ready': 'Ready',
-      'served': 'Served',
-    }
+    const statusLabels = Object.fromEntries(
+      (['pending', 'accepted', 'preparing', 'in-progress', 'ready', 'served'] as OrderStatus[]).map(st => [st, stageOf(st).label])
+    ) as Record<OrderStatus, string>
 
     try {
       if (nextStatus === 'served') {
@@ -650,8 +648,17 @@ export default function KitchenPage() {
               <span className="text-sm text-slate-600 uppercase tracking-wide">Live</span>
             </div>
           </div>
-          <LiveClock now={now} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              <span className="material-symbols-outlined">help</span>How it works
+            </button>
+            <LiveClock now={now} />
+          </div>
         </header>
+        <StaffGuide open={guideOpen} onClose={() => setGuideOpen(false)} role="kitchen" />
 
         <main className="md:ml-64 p-4 md:p-8">
 
@@ -680,10 +687,9 @@ export default function KitchenPage() {
               <div className="mb-4 flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                 <span className="material-symbols-outlined text-blue-500 mt-0.5 flex-shrink-0">info</span>
                 <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                  <strong>Kitchen workflow:</strong> Mark orders In Progress → Ready → Served as you cook and deliver.
-                  &ldquo;Served&rdquo; means food reached the table — the table stays{' '}
-                  <strong>Occupied</strong> until the customer pays at checkout.
-                  Tap any action button, then use the <strong>Undo</strong> toast if you mis-tapped.
+                  <strong>Kitchen flow:</strong> every ticket here is already paid.
+                  Tap <strong>Start cooking</strong> → <strong>Mark ready</strong> when plated → <strong>Mark served</strong> once it reaches the table.
+                  Mis-tapped? Use <strong>Undo</strong> on the message that pops up.
                 </p>
               </div>
 
@@ -720,7 +726,7 @@ export default function KitchenPage() {
                           : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                         }`}
                     >
-                      {s === 'in-progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      {s === 'all' ? 'All' : stageOf(s).label}
                     </button>
                   ))}
                 </div>
@@ -914,7 +920,7 @@ export default function KitchenPage() {
                                   onClick={() => advance(order)}
                                   className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded uppercase tracking-wider text-[10px] active:scale-95 transition-all"
                                 >
-                                  Start Cooking
+                                  Start cooking
                                 </button>
                                 {isUrgent && (
                                   <button
@@ -941,7 +947,7 @@ export default function KitchenPage() {
                                 className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded uppercase tracking-wider text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
                               >
                                 {isUrgent && <span className="material-symbols-outlined text-[14px]">priority_high</span>}
-                                Mark Ready
+                                Mark ready
                               </button>
                             )}
                             {order.status === 'ready' && (
@@ -950,7 +956,7 @@ export default function KitchenPage() {
                                 className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded uppercase tracking-wider text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
                               >
                                 <span className="material-symbols-outlined text-sm">check_circle</span>
-                                Mark Served
+                                Mark served
                               </button>
                             )}
                           </div>

@@ -6,6 +6,7 @@ import { useSession, signOut as nextAuthSignOut } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import FloorPlanEditor from './components/FloorPlanEditor'
+import { StaffGuide } from '@/app/components/StaffGuide'
 import {
   listenToOrders,
   listenToMenu,
@@ -226,6 +227,7 @@ function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
 export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [view, setView] = useState<AdminView>('insights')
+  const [guideOpen, setGuideOpen] = useState(false)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [tables, setTables] = useState<Table[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -483,7 +485,12 @@ export default function AdminPage() {
                 <span>{item.label}</span>
               </button>
             ))}
+            <button onClick={() => setGuideOpen(true)}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium transition-all rounded-lg text-zinc-600 hover:bg-zinc-200 hover:text-zinc-900">
+              <span className="material-symbols-outlined">help</span>How it works
+            </button>
           </nav>
+          <StaffGuide open={guideOpen} onClose={() => setGuideOpen(false)} role="admin" />
           <div className="px-6 mt-auto">
             <div className="flex items-center gap-3 p-2 bg-white rounded-lg shadow-sm border border-zinc-100">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm">
@@ -659,7 +666,7 @@ export default function AdminPage() {
                       <div key={item.id} className={`bg-white rounded-2xl overflow-hidden border border-zinc-200 hover:shadow-xl transition-all group ${!item.available ? 'opacity-75' : ''}`}>
                         <div className="relative h-44 overflow-hidden">
                           <img
-                            src={item.image}
+                            src={item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
                             alt={item.name}
                             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${!item.available ? 'grayscale' : ''}`}
                             onError={e => {

@@ -604,7 +604,13 @@ export default function FloorPlanEditor({ tables }: { tables: Table[] }) {
                       value={selectedLayout.capacity}
                       min={1}
                       max={20}
-                      onChange={v => updateLayout(selectedTable.id, { capacity: v })}
+                      onChange={v => {
+                        // Grow the table so the chairs fit (never shrinks a table you sized yourself)
+                        const fit = defaultTableSize(selectedLayout.shape, v)
+                        const width = Math.max(selectedLayout.width, fit.width)
+                        const height = selectedLayout.shape === 'round' ? width : Math.max(selectedLayout.height, fit.height)
+                        updateLayout(selectedTable.id, { capacity: v, width, height })
+                      }}
                     />
                   </Field>
                   <SizeFields

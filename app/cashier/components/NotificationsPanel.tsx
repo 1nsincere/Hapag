@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { listenToOrders, listenToTables, Order, Table } from '@/lib/data'
-import { playChime } from '@/lib/chime'
+import { listenToOrders, Order } from '@/lib/data'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +46,6 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
   const [notifications, setNotifications] = useState<Notification[]>([])
   // Track which order/table IDs we've already emitted notifications for
   const seenOrders = useRef<Set<string>>(new Set())
-  const seenTables = useRef<Set<string>>(new Set())
   const isFirstLoad = useRef(true)
 
   // Push a new notification (fires only for truly new events, not on initial snapshot)
@@ -77,8 +75,7 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
         const itemCount = `${o.items.length} item${o.items.length !== 1 ? 's' : ''}`
         // Customer sent an order — this is the step that needs the cashier
         if (o.status === 'pending' && !seenOrders.current.has(pendingKey)) {
-          seenOrders.current.add(pendingKey)
-          playChime()
+          seenOrders.current.add(pendingKey) // sound comes from the bottom-left alert cards
           push({
             type: 'new_order',
             title: 'Order needs accepting',
@@ -102,31 +99,6 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
             title: 'Order Ready',
             body: `Table ${o.tableNumber}'s order is ready for pickup`,
           })
-        }
-      })
-    })
-    return unsub
-  }, [push])
-
-  // Subscribe to tables — detect bill requests (reserved → occupied with active order)
-  useEffect(() => {
-    const unsub = listenToTables((tables: Table[]) => {
-      tables.forEach(t => {
-        // Heuristic: table has an active order but status changed to 'available'
-        // means payment was just completed
-        const paidKey = `${t.id}:paid`
-        if (t.status === 'available' && seenTables.current.has(`${t.id}:occupied`) && !seenTables.current.has(paidKey)) {
-          seenTables.current.add(paidKey)
-          push({
-            type: 'payment_done',
-            title: 'Payment Completed',
-            body: `Table ${t.tableNumber} has been cleared after payment`,
-          })
-        }
-        if (t.status === 'occupied') {
-          seenTables.current.add(`${t.id}:occupied`)
-          // New seating — allow the next payment on this table to notify again
-          seenTables.current.delete(paidKey)
         }
       })
     })

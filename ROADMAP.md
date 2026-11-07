@@ -13,8 +13,8 @@ _Last reviewed: 2026-11-07_
 | Kitchen | `/kitchen` | Queue of paid orders: preparing → in-progress → ready → served |
 | Admin | `/admin` (alias `/dashboard`) | Menu CRUD + stock, tables + QR codes, settings |
 
-**Order lifecycle:** `pending` (placed) → `accepted` (cashier) → `preparing` + `paid` (customer checkout or cashier) → `in-progress` → `ready` → `served`.
-**Table lifecycle:** QR scan → `occupied`; payment → `available`.
+**Order flow** (names from `lib/orderFlow.ts`, used on every screen): New order → Awaiting payment → In queue → Cooking → Ready to serve → Served. See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
+**Table lifecycle:** QR scan (or cashier) → Occupied; stays occupied after payment; cashier taps *Clear table* when guests leave → Available.
 
 **Stack:** Next.js 16 (App Router, Turbopack) · React 19 · Tailwind 4 · Firebase (Firestore + Auth) · NextAuth (staff login, JWT) · role checks in `proxy.ts`.
 
@@ -28,6 +28,7 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 renamed product to **Hapag**; restaurant name now always comes from admin Settings (incl. cashier header)
 - 2026-11-07 customer UI redesign (Hapag Noir); end-to-end order run-through (26/28 checks pass); rules block self-paid orders and stock resets; cashier alert + chime for orders awaiting acceptance; kitchen chime fixed; `npm run seed:demo` demo data
 - 2026-11-07 floor plan editor (multi-floor, drag/resize/rotate tables, walls/bar/kitchen/etc., undo, snap) + live cashier map; login no longer redirects before Firebase sign-in finishes
+- 2026-11-07 one shared order-flow vocabulary + built-in "How it works" staff guide; persistent cashier action alerts (new order / call staff / ready to serve); real "Call staff"; tables stay occupied until cleared; cashier Menu ⇄ Floor plan switch; table history index
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.

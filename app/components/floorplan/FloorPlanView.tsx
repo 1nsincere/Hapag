@@ -10,8 +10,10 @@ import { listenToFloors, type Floor, type Table } from '@/lib/data'
 import FloorCanvas, { type CanvasTable } from './FloorCanvas'
 import { resolveLayout } from './shared'
 
-export default function FloorPlanView({ tables, selectedTableId, onSelectTable, now, onShowList }: {
+export default function FloorPlanView({ tables, selectedTableId, onSelectTable, now, onShowList, readyToClear }: {
   tables: Table[]
+  /** Occupied tables with everything served & paid — shown as "Ready to clear" */
+  readyToClear?: Set<string>
   selectedTableId?: string | null
   onSelectTable?: (id: string) => void
   now?: number
@@ -55,7 +57,7 @@ export default function FloorPlanView({ tables, selectedTableId, onSelectTable, 
       return {
         id: t.id, tableNumber: t.tableNumber, name: t.name, capacity: t.capacity, status: t.status,
         x: l.positionX, y: l.positionY, w: l.width, h: l.height, rotation: l.rotation, shape: l.shape,
-        note: mins !== null ? (mins > 0 ? `${mins}m` : 'now') : undefined,
+        note: readyToClear?.has(t.id) ? 'Ready to clear' : mins !== null ? (mins > 0 ? `${mins}m` : 'now') : undefined,
       }
     })
 

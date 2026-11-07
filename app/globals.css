@@ -176,3 +176,6 @@ body {
   .print-hide { display: none !important; }
   @page { size: auto; margin: 0; }
 }
+
+/* Cashier action alerts (bottom-left) */
+@keyframes hpAlertIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }

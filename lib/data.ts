@@ -10,7 +10,8 @@ import {
   orderBy,
   addDoc,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  where
 } from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
@@ -70,6 +71,7 @@ const MENU_COL     = 'menu'
 const ORDERS_COL   = 'orders'
 const TABLES_COL   = 'tables'
 const FLOORS_COL   = 'floors'
+const SERVICE_COL  = 'serviceRequests'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TABLE MANAGEMENT
@@ -526,31 +528,26 @@ export async function markOrderServed(orderId: string): Promise<void> {
 }
 
 /**
- * PAY-AS-YOU-ORDER: Called after the customer confirms payment.
+ * Called when an order is paid (customer checkout or cashier).
+ * Marks it paid and sends it to the kitchen queue ('preparing').
  *
- * Atomically:
- *   1. Sets paymentStatus → 'paid', status → 'new' (now visible in kitchen)
- *   2. Records paymentMethod, tipAmount, grandTotal, paidAt timestamp
- *   3. Marks the table as 'occupied' so it can't be double-seated
+ * The TABLE is deliberately left alone: guests are still eating after they
+ * pay. The cashier clears the table when they leave (clearTableAfterPayment).
  */
 export async function processPaymentAndActivateOrder(
   orderId: string,
   paymentMethod: 'qrph' | 'card' | 'cash',
   tipAmount: number,
   grandTotal: number,
-  tableId?: string,
   finalItems?: { items: CartItem[]; total: number }
 ): Promise<void> {
   try {
     // Ensure the client SDK is authenticated (anonymously for customers) before writing
     await ensureAuth();
-
     const now = Date.now()
-    const batch = writeBatch(db)
-
-    // Promote order to kitchen queue. If the customer adjusted quantities at
-    // checkout, persist the final items so the kitchen cooks what was paid for.
-    batch.update(doc(db, ORDERS_COL, orderId), {
+    // If the customer adjusted quantities at checkout, persist the final items
+    // so the kitchen cooks exactly what was paid for.
+    await updateDoc(doc(db, ORDERS_COL, orderId), {
       ...(finalItems ? { items: finalItems.items, total: finalItems.total } : {}),
       paymentStatus: 'paid',
       paymentMethod,
@@ -560,23 +557,43 @@ export async function processPaymentAndActivateOrder(
       status: 'preparing',
       updatedAt: now,
     })
-
-    // Mark table available (since order is paid and sent to kitchen)
-    if (tableId) {
-      batch.update(doc(db, TABLES_COL, tableId), {
-        status: 'available',
-        currentOrderId: null,
-        occupiedAt: null,
-        updatedAt: now,
-      })
-    }
-
-    await batch.commit()
-    console.log('[processPaymentAndActivateOrder] payment confirmed, order activated:', orderId)
   } catch (error) {
     console.error('Error processing payment and activating order:', error)
     throw error
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SERVICE REQUESTS ("Call staff" from the customer's phone)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface ServiceRequest {
+  id: string
+  tableNumber: number
+  type: 'staff'
+  status: 'open' | 'done'
+  createdAt: number
+  resolvedAt?: number
+}
+
+export async function createServiceRequest(tableNumber: number): Promise<void> {
+  await ensureAuth()
+  await addDoc(collection(db, SERVICE_COL), { tableNumber, type: 'staff', status: 'open', createdAt: Date.now() })
+}
+
+/** Staff screens only — open requests, oldest first */
+export function listenToOpenServiceRequests(callback: (requests: ServiceRequest[]) => void) {
+  return listenWhenSignedIn(() => onSnapshot(
+    query(collection(db, SERVICE_COL), where('status', '==', 'open')),
+    snap => callback(
+      snap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceRequest)).sort((a, b) => a.createdAt - b.createdAt)
+    ),
+    error => console.error('[listenToOpenServiceRequests] Firestore error:', error)
+  ))
+}
+
+export async function resolveServiceRequest(id: string) {
+  await updateDoc(doc(db, SERVICE_COL, id), { status: 'done', resolvedAt: Date.now() })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
