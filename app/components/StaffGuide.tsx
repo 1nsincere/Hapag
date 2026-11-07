@@ -99,7 +99,7 @@ export function StaffGuide({ open, onClose, role }: { open: boolean; onClose: ()
           {/* Alerts */}
           {role !== 'kitchen' && (
             <section>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">Alerts (bottom-left of the cashier screen)</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">Alerts (lower right of the cashier screen)</h3>
               <ul className="space-y-2 text-sm text-zinc-700">
                 <li className="flex gap-2"><span className="w-3 h-3 mt-1 rounded-full bg-red-600 shrink-0" /><span><b>Table is calling for staff</b> — go to the table, then tap <b>On my way</b>.</span></li>
                 <li className="flex gap-2"><span className="w-3 h-3 mt-1 rounded-full bg-amber-500 shrink-0" /><span><b>New order</b> — check it and tap <b>Accept</b>. The customer can’t pay until you do.</span></li>

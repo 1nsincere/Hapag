@@ -7,6 +7,7 @@ import { db, auth } from '@/lib/firebase'
 import { playChime } from '@/lib/chime'
 import { stageOf } from '@/lib/orderFlow'
 import { StaffGuide } from '@/app/components/StaffGuide'
+import { TableBadge } from '@/app/components/atoms/TableBadge'
 import {
   collection, query, where, orderBy, limit,
   getDocs, startAfter, onSnapshot, QueryDocumentSnapshot
@@ -583,8 +584,10 @@ export default function KitchenPage() {
     )
   }, [orders])
 
-  const activeCount = orders.filter(o => o.status !== 'served').length
-  const pendingItems = orders.filter(o => o.status !== 'served').reduce((sum, o) => sum + o.items.length, 0)
+  // Only count tickets the kitchen can act on (paid: In queue / Cooking / Ready) — not new or unpaid orders
+  const kitchenTickets = orders.filter(o => o.status === 'preparing' || o.status === 'in-progress' || o.status === 'ready')
+  const activeCount = kitchenTickets.length
+  const pendingItems = kitchenTickets.reduce((sum, o) => sum + o.items.reduce((n, i) => n + i.quantity, 0), 0)
 
   // --- Render -----------------------------------------------------------------
   return (
@@ -819,7 +822,7 @@ export default function KitchenPage() {
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <div className="flex items-center gap-1.5">
-                                  <p className="text-lg font-bold text-slate-900 leading-none">Table {order.tableNumber}</p>
+                                  <TableBadge tableNumber={order.tableNumber} size="lg" />
                                   {(() => {
                                     const table = tables.find(t => t.tableNumber === order.tableNumber)
                                     if (!table) return null
@@ -1053,8 +1056,9 @@ export default function KitchenPage() {
                     className="bg-white rounded-xl border border-slate-100 p-4 flex items-center justify-between shadow-sm"
                   >
                     <div>
-                      <p className="font-bold text-slate-900">
-                        Table {order.tableNumber} — #{order.id.slice(0, 6)}
+                      <p className="font-bold text-slate-900 flex items-center gap-2">
+                        <TableBadge tableNumber={order.tableNumber} size="sm" />
+                        <span className="font-mono text-sm text-slate-600">#{order.id.slice(0, 6)}</span>
                       </p>
                       <p className="text-sm text-slate-500">
                         {order.items.length} items · ₱{order.total.toFixed(2)}

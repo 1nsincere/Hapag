@@ -1,7 +1,8 @@
 'use client'
 
 /**
- * Persistent action alerts — bottom-left of the cashier screen.
+ * Persistent action alerts — lower right of the cashier screen (just left of
+ * the side panel on large screens, so the cart's Complete Sale button stays clear).
  *
  * Rule: an alert only appears when someone must DO something, and it stays
  * until they do it.
@@ -14,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Order, ServiceRequest } from '@/lib/data'
 import { playChime } from '@/lib/chime'
+import { TableBadge } from '@/app/components/atoms/TableBadge'
 
 const ACK_KEY = 'hapag_alert_acks'
 const MAX_VISIBLE = 3
@@ -109,7 +111,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
     return (
       <button
         onClick={() => setMinimised(false)}
-        className="fixed left-4 bottom-4 z-[70] h-12 pl-3 pr-4 rounded-full bg-zinc-900 text-white shadow-2xl flex items-center gap-2 text-sm font-bold"
+        className="fixed right-4 lg:right-[25rem] xl:right-[calc(440px+1rem)] bottom-4 z-[70] h-12 pl-3 pr-4 rounded-full bg-zinc-900 text-white shadow-2xl flex items-center gap-2 text-sm font-bold"
         aria-label={`${alerts.length} alerts waiting — show`}
       >
         <span className="material-symbols-outlined text-[20px]">notifications_active</span>
@@ -126,7 +128,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
 
   return (
     <div
-      className="fixed left-4 bottom-4 z-[70] w-[min(380px,calc(100vw-2rem))] flex flex-col gap-2 max-h-[calc(100vh-6rem)] overflow-y-auto"
+      className="fixed right-4 lg:right-[25rem] xl:right-[calc(440px+1rem)] bottom-4 z-[70] w-[min(380px,calc(100vw-2rem))] flex flex-col gap-2 max-h-[calc(100vh-6rem)] overflow-y-auto"
       role="region"
       aria-label="Alerts that need action"
       aria-live="assertive"
@@ -147,7 +149,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         const isBusy = busy === a.id
         if (a.kind === 'call') {
           return (
-            <Card key={a.id} tone="red" icon="front_hand" title={`Table ${a.request.tableNumber} is calling for staff`} meta={ago(a.at, now)}>
+            <Card key={a.id} tone="red" icon="front_hand" title={<><TableBadge tableNumber={a.request.tableNumber} size="sm" /> is calling for staff</>} meta={ago(a.at, now)}>
               <button disabled={isBusy} onClick={() => run(a.id, () => onResolveRequest(a.request))} className="flex-1 h-10 rounded-lg bg-red-600 text-white font-bold text-sm hover:bg-red-700 disabled:opacity-50">
                 {isBusy ? 'Saving…' : 'On my way'}
               </button>
@@ -160,7 +162,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
           const summary = o.items.slice(0, 2).map(i => `${i.quantity}× ${i.name}`).join(', ') + (o.items.length > 2 ? ` +${o.items.length - 2} more` : '')
           const priceIssue = hasPriceIssue(o)
           return (
-            <Card key={a.id} tone="amber" icon="notifications_active" title={`New order · ${o.tableNumber ? `Table ${o.tableNumber}` : 'Takeout'}`} meta={`${count} item${count !== 1 ? 's' : ''} · ₱${o.total.toFixed(2)} · ${ago(a.at, now)}`}>
+            <Card key={a.id} tone="amber" icon="notifications_active" title={<>New order <TableBadge tableNumber={o.tableNumber} size="sm" /></>} meta={`${count} item${count !== 1 ? 's' : ''} · ₱${o.total.toFixed(2)} · ${ago(a.at, now)}`}>
               <p className="w-full text-xs text-amber-900/80 -mt-1 mb-1 truncate">{summary}</p>
               {priceIssue && (
                 <p className="w-full text-xs font-bold text-red-600 -mt-1 mb-1 flex items-center gap-1">
@@ -180,7 +182,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         }
         const o = a.order
         return (
-          <Card key={a.id} tone="green" icon="room_service" title={`Ready to serve · ${o.tableNumber ? `Table ${o.tableNumber}` : 'Takeout'}`} meta={ago(a.at, now)}>
+          <Card key={a.id} tone="green" icon="room_service" title={<>Ready to serve <TableBadge tableNumber={o.tableNumber} size="sm" /></>} meta={ago(a.at, now)}>
             <button disabled={isBusy} onClick={() => run(a.id, () => onMarkServed(o))} className="flex-1 h-10 rounded-lg bg-green-600 text-white font-bold text-sm hover:bg-green-700 disabled:opacity-50">
               {isBusy ? 'Saving…' : 'Mark served'}
             </button>
@@ -191,7 +193,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         )
       })}
       {(hidden > 0 || expanded) && alerts.length > MAX_VISIBLE && (
-        <button onClick={() => setExpanded(v => !v)} className="self-start h-9 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold shadow-lg">
+        <button onClick={() => setExpanded(v => !v)} className="self-end h-9 px-4 rounded-full bg-zinc-900 text-white text-sm font-semibold shadow-lg">
           {expanded ? 'Show less' : `+${hidden} more waiting`}
         </button>
       )}
@@ -208,7 +210,7 @@ const TONES = {
 function Card({ tone, icon, title, meta, children }: {
   tone: keyof typeof TONES
   icon: string
-  title: string
+  title: React.ReactNode
   meta: string
   children: React.ReactNode
 }) {
@@ -220,7 +222,7 @@ function Card({ tone, icon, title, meta, children }: {
           <span className="material-symbols-outlined text-[20px]">{icon}</span>
         </span>
         <div className="min-w-0">
-          <p className={`font-bold text-sm leading-tight ${t.title}`}>{title}</p>
+          <div className={`font-bold text-sm leading-tight flex flex-wrap items-center gap-1.5 ${t.title}`}>{title}</div>
           <p className={`text-xs mt-0.5 ${t.meta}`}>{meta}</p>
         </div>
       </div>

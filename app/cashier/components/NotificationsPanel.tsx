@@ -75,7 +75,7 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
         const itemCount = `${o.items.length} item${o.items.length !== 1 ? 's' : ''}`
         // Customer sent an order — this is the step that needs the cashier
         if (o.status === 'pending' && !seenOrders.current.has(pendingKey)) {
-          seenOrders.current.add(pendingKey) // sound comes from the bottom-left alert cards
+          seenOrders.current.add(pendingKey) // sound comes from the alert cards (lower right)
           push({
             type: 'new_order',
             title: 'Order needs accepting',

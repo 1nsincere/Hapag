@@ -177,5 +177,5 @@ body {
   @page { size: auto; margin: 0; }
 }
 
-/* Cashier action alerts (bottom-left) */
-@keyframes hpAlertIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+/* Cashier action alerts (lower right) */
+@keyframes hpAlertIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }

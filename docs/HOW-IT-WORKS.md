@@ -31,7 +31,7 @@ Cashier → **Cart** → add items → pick the table (or Takeout) → take paym
 
 **Golden rule:** paying does **not** free a table — guests are still eating. The cashier taps **Clear table (guests left)** when they leave. The map tags a table **Ready to clear** when everything is served and paid.
 
-## Alerts (bottom-left of the cashier screen)
+## Alerts (lower right of the cashier screen)
 
 Alerts only appear when someone has to do something, and stay until it's done:
 

@@ -16,6 +16,8 @@ import FloorPlanView from '@/app/components/floorplan/FloorPlanView'
 import { AlertStack } from '@/app/cashier/components/AlertStack'
 import { StaffGuide } from '@/app/components/StaffGuide'
 import { stageOf, TONE_CLASSES } from '@/lib/orderFlow'
+import { TableBadge } from '@/app/components/atoms/TableBadge'
+import { tableColor } from '@/lib/tableColors'
 import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS, markOrderServed, listenToOpenServiceRequests, resolveServiceRequest, ServiceRequest } from '@/lib/data'
 
 function CashierContent() {
@@ -570,13 +572,14 @@ function CashierContent() {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
                         const timeString = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         return (
-                          <div key={order.id} className="bg-orange-50/50 rounded-xl p-4 border border-orange-100 shadow-sm">
+                          <div key={order.id} className="bg-orange-50/50 rounded-xl p-4 border border-orange-100 shadow-sm" style={{ borderLeft: `6px solid ${tableColor(order.tableNumber).bg}` }}>
                             <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h3 className="font-semibold text-orange-900">Order {order.id.slice(0, 8)}</h3>
-                                <p className="text-sm text-orange-700 font-medium">
-                                  Table {table?.tableNumber || 'Unknown'} • {timeString}
-                                </p>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <TableBadge tableNumber={order.tableNumber} size="lg" />
+                                  <span className="text-sm font-semibold text-zinc-700">{timeString}</span>
+                                </div>
+                                <p className="text-xs font-mono text-zinc-600">Order #{order.id.slice(0, 8)}</p>
                               </div>
                               <span className="text-sm font-mono text-orange-800 font-bold">₱{order.total.toFixed(2)}</span>
                             </div>
@@ -637,13 +640,14 @@ function CashierContent() {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
                         const timeString = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         return (
-                          <div key={order.id} className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 shadow-sm">
+                          <div key={order.id} className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 shadow-sm" style={{ borderLeft: `6px solid ${tableColor(order.tableNumber).bg}` }}>
                             <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h3 className="font-semibold text-blue-900">Order {order.id.slice(0, 8)}</h3>
-                                <p className="text-sm text-blue-700 font-medium">
-                                  Table {table?.tableNumber || 'Unknown'} • {timeString}
-                                </p>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <TableBadge tableNumber={order.tableNumber} size="lg" />
+                                  <span className="text-sm font-semibold text-zinc-700">{timeString}</span>
+                                </div>
+                                <p className="text-xs font-mono text-zinc-600">Order #{order.id.slice(0, 8)}</p>
                               </div>
                               <span className="text-sm font-mono text-blue-800 font-bold">₱{order.total.toFixed(2)}</span>
                             </div>
@@ -699,13 +703,14 @@ function CashierContent() {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
                         const timeString = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         return (
-                          <div key={order.id} className="bg-white rounded-xl p-4 border border-surface-container-low opacity-80 hover:opacity-100 transition-opacity">
+                          <div key={order.id} className="bg-white rounded-xl p-4 border border-surface-container-low opacity-90 hover:opacity-100 transition-opacity" style={{ borderLeft: `6px solid ${tableColor(order.tableNumber).bg}` }}>
                             <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h3 className="font-semibold">Order {order.id.slice(0, 8)}</h3>
-                                <p className="text-sm text-on-surface-variant">
-                                  Table {table?.tableNumber || 'Unknown'} • {timeString}
-                                </p>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <TableBadge tableNumber={order.tableNumber} size="lg" />
+                                  <span className="text-sm font-semibold text-zinc-700">{timeString}</span>
+                                </div>
+                                <p className="text-xs font-mono text-zinc-600">Order #{order.id.slice(0, 8)}</p>
                               </div>
                               <div className="text-right">
                                 <span className="text-sm font-mono text-primary block">₱{order.total.toFixed(2)}</span>
@@ -807,7 +812,7 @@ function CashierContent() {
                   >
                     <div className="flex items-start justify-between gap-2 min-w-0">
                       <div className="min-w-0">
-                        <p className="font-bold text-lg truncate">Table {table.tableNumber}</p>
+                        <TableBadge tableNumber={table.tableNumber} />
                         <p className="text-xs text-on-surface-variant">Capacity: {table.capacity}</p>
                       </div>
                       <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(table.status)}`}>
@@ -857,7 +862,7 @@ function CashierContent() {
               {selectedTable && (
                 <div className="bg-white rounded-xl p-4 border border-surface-container-low">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">Table {selectedTable.tableNumber}</h3>
+                    <TableBadge tableNumber={selectedTable.tableNumber} size="lg" />
                     <button
                       onClick={() => setSelectedTableId(null)}
                       className="text-on-surface-variant hover:text-on-surface"
