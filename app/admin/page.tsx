@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useSession, signOut as nextAuthSignOut } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import FloorPlanEditor from './components/FloorPlanEditor'
 import {
   listenToOrders,
   listenToMenu,
@@ -97,7 +98,7 @@ async function uploadToCloudinary(file: File, cloudName: string, uploadPreset?: 
   return imageUrl
 }
 
-type AdminView = 'insights' | 'menu' | 'qr' | 'settings'
+type AdminView = 'insights' | 'menu' | 'qr' | 'floor' | 'settings'
 
 // ─── Settings View ───────────────────────────────────────────────────────────────
 function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
@@ -473,6 +474,7 @@ export default function AdminPage() {
               { key: 'insights', icon: 'analytics', label: 'Insights' },
               { key: 'menu', icon: 'restaurant_menu', label: 'Menu Manager' },
               { key: 'qr', icon: 'table_restaurant', label: 'Table Management' },
+              { key: 'floor', icon: 'floor', label: 'Floor Plan' },
               { key: 'settings', icon: 'settings', label: 'System Settings' },
             ] as { key: AdminView; icon: string; label: string }[]).map(item => (
               <button key={item.key} onClick={() => { setView(item.key); setMobileSidebar(false) }}
@@ -848,6 +850,8 @@ export default function AdminPage() {
               )}
             </div>
           )}
+
+          {view === 'floor' && <FloorPlanEditor tables={tables} />}
 
           {view === 'settings' && <SettingsView initialSettings={settings} />}
         </main>

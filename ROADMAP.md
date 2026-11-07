@@ -27,6 +27,7 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 cleanup: removed stale `Qr_Wawo-s/` copy (already merged), customer self-checkout now allowed by rules, login hardening, `middleware` → `proxy`, `.env.example`
 - 2026-11-07 renamed product to **Hapag**; restaurant name now always comes from admin Settings (incl. cashier header)
 - 2026-11-07 customer UI redesign (Hapag Noir); end-to-end order run-through (26/28 checks pass); rules block self-paid orders and stock resets; cashier alert + chime for orders awaiting acceptance; kitchen chime fixed; `npm run seed:demo` demo data
+- 2026-11-07 floor plan editor (multi-floor, drag/resize/rotate tables, walls/bar/kitchen/etc., undo, snap) + live cashier map; login no longer redirects before Firebase sign-in finishes
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.
@@ -51,4 +52,5 @@ _Last reviewed: 2026-11-07_
 - 70 remaining lint findings (mostly `any`, `<img>` → `next/image`, React-compiler effect warnings)
 - Split the very large page files (`admin`, `cashier`, `kitchen`, `menu` are 1,000–1,500 lines each)
 - Hapag brand assets: logo, favicon, brand colors, landing/sales page
+- Floor plan: show the live map on the kitchen screen too; drag tables to merge/split parties; reservations on the map
 - Add tests for the order/payment lifecycle and Firestore rules (emulator)

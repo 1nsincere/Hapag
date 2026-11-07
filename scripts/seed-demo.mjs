@@ -4,7 +4,7 @@
  * orders in every stage so you can try the customer, cashier, kitchen and
  * admin screens right away (also handy for sales demos).
  *
- *   npm run seed:demo            replace demo data (menu, tables, sample orders)
+ *   npm run seed:demo            replace demo data (menu, floors, tables, sample orders)
  *   npm run seed:demo -- --no-orders   menu + tables only
  *   npm run seed:demo:remove     delete ONLY demo data (anything tagged demo: true)
  *
@@ -102,15 +102,60 @@ const MENU = [
     description: 'House-churned purple yam ice cream.', image: img('photo-1505252585461-04db1eb84625') },
 ]
 
+// floor: index into FLOORS · x/y/w/h in floor units (floors are 1200 × 800)
 const TABLES = [
-  { n: 1, name: 'Window 1', capacity: 2, shape: 'round' },
-  { n: 2, name: 'Window 2', capacity: 2, shape: 'round' },
-  { n: 3, name: 'Main 3', capacity: 4, shape: 'square' },
-  { n: 4, name: 'Main 4', capacity: 4, shape: 'square' },
-  { n: 5, name: 'Main 5', capacity: 4, shape: 'square' },
-  { n: 6, name: 'Family 6', capacity: 6, shape: 'square' },
-  { n: 7, name: 'Family 7', capacity: 8, shape: 'square' },
-  { n: 8, name: 'Garden 8', capacity: 4, shape: 'round' },
+  { n: 1, name: 'Window 1', capacity: 2, shape: 'round',     floor: 0, x: 90,  y: 110, w: 80,  h: 80 },
+  { n: 2, name: 'Window 2', capacity: 2, shape: 'round',     floor: 0, x: 250, y: 110, w: 80,  h: 80 },
+  { n: 3, name: 'Main 3',   capacity: 4, shape: 'square',    floor: 0, x: 430, y: 100, w: 100, h: 100 },
+  { n: 4, name: 'Main 4',   capacity: 4, shape: 'square',    floor: 0, x: 630, y: 100, w: 100, h: 100 },
+  { n: 5, name: 'Main 5',   capacity: 4, shape: 'square',    floor: 0, x: 540, y: 340, w: 100, h: 100, rotation: 45 },
+  { n: 6, name: 'Family 6', capacity: 6, shape: 'rectangle', floor: 0, x: 110, y: 350, w: 220, h: 90 },
+  { n: 7, name: 'Family 7', capacity: 8, shape: 'rectangle', floor: 1, x: 120, y: 160, w: 280, h: 90 },
+  { n: 8, name: 'Garden 8', capacity: 4, shape: 'round',     floor: 1, x: 500, y: 200, w: 100, h: 100 },
+]
+
+const W = 16 // wall thickness
+const FLOORS = [
+  {
+    name: 'Ground Floor', width: 1200, height: 800,
+    elements: [
+      { type: 'wall', x: 0, y: 0, w: 1200, h: W },
+      { type: 'wall', x: 0, y: 0, w: W, h: 800 },
+      { type: 'wall', x: 1184, y: 0, w: W, h: 800 },
+      { type: 'wall', x: 0, y: 784, w: 480, h: W },
+      { type: 'wall', x: 640, y: 784, w: 560, h: W },
+      { type: 'window', x: 80, y: 2, w: 280, h: 12 },
+      { type: 'window', x: 420, y: 2, w: 320, h: 12 },
+      { type: 'entrance', x: 500, y: 740, w: 120, h: 40, label: 'Entrance' },
+      { type: 'kitchen', x: 880, y: W, w: 304, h: 230, label: 'Kitchen' },
+      { type: 'wall', x: 880, y: 246, w: 220, h: W },
+      { type: 'bar', x: 1090, y: 320, w: 80, h: 300, label: 'Bar' },
+      { type: 'counter', x: 700, y: 690, w: 180, h: 70, label: 'Cashier' },
+      { type: 'restroom', x: W, y: 640, w: 150, h: 144, label: 'CR' },
+      { type: 'stairs', x: 200, y: 650, w: 110, h: 134, label: 'Up' },
+      { type: 'plant', x: 30, y: 30, w: 46, h: 46 },
+      { type: 'plant', x: 800, y: 30, w: 46, h: 46 },
+      { type: 'plant', x: 380, y: 700, w: 46, h: 46 },
+      { type: 'label', x: 360, y: 540, w: 260, h: 50, label: 'Main Dining' },
+    ],
+  },
+  {
+    name: 'Roof Deck', width: 1200, height: 800,
+    elements: [
+      { type: 'wall', x: 0, y: 0, w: 1200, h: 10 },
+      { type: 'wall', x: 0, y: 0, w: 10, h: 800 },
+      { type: 'wall', x: 1190, y: 0, w: 10, h: 800 },
+      { type: 'wall', x: 0, y: 790, w: 1200, h: 10 },
+      { type: 'zone', x: 60, y: 60, w: 720, h: 480, label: 'Garden seating' },
+      { type: 'stairs', x: 60, y: 620, w: 120, h: 150, label: 'Down' },
+      { type: 'bar', x: 840, y: 80, w: 300, h: 80, label: 'Drinks bar' },
+      { type: 'plant', x: 840, y: 260, w: 60, h: 60 },
+      { type: 'plant', x: 960, y: 260, w: 60, h: 60 },
+      { type: 'plant', x: 1080, y: 260, w: 60, h: 60 },
+      { type: 'plant', x: 700, y: 600, w: 60, h: 60 },
+      { type: 'label', x: 860, y: 600, w: 260, h: 50, label: 'City view' },
+    ],
+  },
 ]
 
 // Orders in every stage. Table 1 is left free for you to order from your phone.
@@ -165,8 +210,9 @@ async function main() {
     orders: await removeDemo('orders'),
     menu: await removeDemo('menu'),
     tables: await removeDemo('tables'),
+    floors: await removeDemo('floors'),
   }
-  console.log(`Removed previous demo data: ${removed.menu} dishes, ${removed.tables} tables, ${removed.orders} orders`)
+  console.log(`Removed previous demo data: ${removed.menu} dishes, ${removed.tables} tables, ${removed.floors} floors, ${removed.orders} orders`)
   if (REMOVE_ONLY) return
 
   const now = Date.now()
@@ -192,18 +238,34 @@ async function main() {
   }
   await menuBatch.commit()
 
+  // Floors — demo floors go after any floors the restaurant already drew
+  const existingFloors = (await getDocs(collection(db, 'floors'))).docs.map(d => d.data())
+  const startOrder = existingFloors.reduce((m, f) => Math.max(m, (f.order ?? 0) + 1), 0)
+  const floorIds = []
+  const floorBatch = writeBatch(db)
+  FLOORS.forEach((f, i) => {
+    const ref = doc(collection(db, 'floors'))
+    floorIds.push(ref.id)
+    floorBatch.set(ref, {
+      name: f.name, order: startOrder + i, width: f.width, height: f.height,
+      elements: f.elements.map((e, j) => ({ id: `demo-${i}-${j}`, rotation: 0, ...e })),
+      createdAt: now, updatedAt: now, demo: true,
+    })
+  })
+  await floorBatch.commit()
+
   // Tables — skip numbers the restaurant already created itself
   const existing = new Set((await getDocs(collection(db, 'tables'))).docs.map(d => d.data().tableNumber))
   const tableIds = {}
   const tableBatch = writeBatch(db)
   let tablesAdded = 0
-  TABLES.forEach((t, i) => {
+  TABLES.forEach(t => {
     if (existing.has(t.n)) return
     const ref = doc(collection(db, 'tables'))
     tableIds[t.n] = ref.id
     tableBatch.set(ref, {
       tableNumber: t.n, name: t.name, status: 'available', qrCode: `table-${t.n}`, capacity: t.capacity,
-      shape: t.shape, positionX: (i % 4) * 160 + 40, positionY: Math.floor(i / 4) * 160 + 40,
+      shape: t.shape, floorId: floorIds[t.floor], positionX: t.x, positionY: t.y, width: t.w, height: t.h, rotation: t.rotation ?? 0,
       currentOrderId: null, occupiedAt: null, createdAt: now, updatedAt: now, demo: true,
     })
     tablesAdded++
@@ -243,7 +305,7 @@ async function main() {
     await orderBatch.commit()
   }
 
-  console.log(`Added ${MENU.length} dishes, ${tablesAdded} tables, ${ordersAdded} orders (all tagged demo: true)`)
+  console.log(`Added ${MENU.length} dishes, ${FLOORS.length} floors, ${tablesAdded} tables, ${ordersAdded} orders (all tagged demo: true)`)
   console.log('\nTry it:  /menu/1 (free table)  ·  /cashier  ·  /kitchen  ·  /admin')
 }
 

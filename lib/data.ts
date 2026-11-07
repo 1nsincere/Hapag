@@ -69,12 +69,14 @@ const SETTINGS_COL = 'settings'
 const MENU_COL     = 'menu'
 const ORDERS_COL   = 'orders'
 const TABLES_COL   = 'tables'
+const FLOORS_COL   = 'floors'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TABLE MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type TableStatus = 'available' | 'occupied' | 'reserved'
+export type TableShape = 'square' | 'round' | 'rectangle'
 
 export interface Table {
   id: string
@@ -83,9 +85,14 @@ export interface Table {
   status: TableStatus
   qrCode: string
   capacity: number
-  positionX: number
-  positionY: number
-  shape?: 'square' | 'round'
+  // ── Floor plan (all in floor-canvas units, see Floor.width/height) ──
+  positionX: number          // left edge
+  positionY: number          // top edge
+  shape?: TableShape
+  floorId?: string | null    // which floor it sits on — unset = not placed yet
+  width?: number
+  height?: number
+  rotation?: number          // degrees, clockwise
   currentOrderId?: string | null
   occupiedAt?: number | null
   createdAt: number
@@ -202,6 +209,97 @@ export function listenToTables(callback: (tables: Table[]) => void) {
     snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Table))),
     error => console.error('[listenToTables] Firestore error:', error)
   )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLOOR PLANS
+// Each floor is a canvas (width × height units) holding room features
+// (walls, bar, entrance…). Tables reference their floor via table.floorId.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type FloorElementType =
+  | 'wall' | 'window' | 'entrance' | 'bar' | 'counter' | 'kitchen'
+  | 'restroom' | 'stairs' | 'plant' | 'zone' | 'label'
+
+export interface FloorElement {
+  id: string
+  type: FloorElementType
+  x: number
+  y: number
+  w: number
+  h: number
+  rotation?: number
+  label?: string
+}
+
+export interface Floor {
+  id: string
+  name: string
+  order: number
+  width: number
+  height: number
+  elements: FloorElement[]
+  createdAt: number
+  updatedAt: number
+}
+
+/** Table fields the floor plan editor is allowed to change */
+export type TableLayout = Pick<Table, 'floorId' | 'positionX' | 'positionY' | 'width' | 'height' | 'rotation' | 'shape' | 'capacity'>
+
+/**
+ * Subscribes only once Firebase Auth has restored the signed-in user.
+ * Needed for staff-only collections: right after a page load the auth session
+ * is still being restored, and a listener attached too early is rejected by
+ * the security rules and never retries.
+ */
+function listenWhenSignedIn(subscribe: () => () => void, onSignedOut?: () => void) {
+  let unsubData: (() => void) | null = null
+  const unsubAuth = onAuthStateChanged(auth, user => {
+    unsubData?.()
+    unsubData = user ? subscribe() : null
+    if (!user) onSignedOut?.()
+  })
+  return () => { unsubAuth(); unsubData?.() }
+}
+
+export function listenToFloors(callback: (floors: Floor[]) => void, onError?: (error: Error) => void) {
+  return listenWhenSignedIn(() => onSnapshot(
+    query(collection(db, FLOORS_COL), orderBy('order')),
+    snap => callback(snap.docs.map(d => {
+      const data = d.data() as Omit<Floor, 'id'>
+      return { ...data, id: d.id, elements: data.elements ?? [] }
+    })),
+    error => { console.error('[listenToFloors] Firestore error:', error); onError?.(error) }
+  ), () => onError?.(new Error('Not signed in to Firebase')))
+}
+
+export async function createFloor(floor: Omit<Floor, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  const now = Date.now()
+  const ref = await addDoc(collection(db, FLOORS_COL), { ...floor, createdAt: now, updatedAt: now })
+  return ref.id
+}
+
+/** Deletes a floor; its tables go back to "not placed" (they are never deleted). */
+export async function deleteFloor(floorId: string, tableIdsOnFloor: string[]) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, FLOORS_COL, floorId))
+  tableIdsOnFloor.forEach(id => batch.update(doc(db, TABLES_COL, id), { floorId: null, updatedAt: Date.now() }))
+  await batch.commit()
+}
+
+/** Saves floor changes and table positions in one atomic write. */
+export async function saveFloorPlan(
+  floors: Pick<Floor, 'id' | 'name' | 'order' | 'width' | 'height' | 'elements'>[],
+  tables: { id: string; layout: TableLayout }[],
+) {
+  const now = Date.now()
+  const batch = writeBatch(db)
+  floors.forEach(f => {
+    const { id, ...data } = f
+    batch.update(doc(db, FLOORS_COL, id), { ...data, updatedAt: now })
+  })
+  tables.forEach(t => batch.update(doc(db, TABLES_COL, t.id), { ...t.layout, updatedAt: now }))
+  await batch.commit()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

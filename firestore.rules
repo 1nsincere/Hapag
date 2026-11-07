@@ -75,6 +75,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ─── FLOOR PLANS ────────────────────────────────────
+    // Staff screens show the layout; only the admin can edit it.
+    match /floors/{floor} {
+      allow read: if isAdminOrCashier() || isKitchen();
+      allow write: if isAdmin();
+    }
+
     // ─── USERS ──────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());

@@ -12,6 +12,7 @@ import { NotificationsPanel } from '@/app/cashier/components/NotificationsPanel'
 import { HistoryPanel } from '@/app/cashier/components/HistoryPanel'
 import { SettingsPanel } from '@/app/cashier/components/SettingsPanel'
 import { TableOrderHistoryModal } from '@/app/cashier/components/TableOrderHistoryModal'
+import FloorPlanView from '@/app/components/floorplan/FloorPlanView'
 import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS } from '@/lib/data'
 
 function CashierContent() {
@@ -48,6 +49,7 @@ function CashierContent() {
   const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, TableStatus>>({})
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showTableHistory, setShowTableHistory] = useState<Table | null>(null)
+  const [tableView, setTableView] = useState<'map' | 'list'>('map')
 
   // QR Payment modal state
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash')
@@ -673,6 +675,35 @@ function CashierContent() {
                 </div>
               </div>
 
+              {/* Map / list toggle */}
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-lg text-on-surface">Dining room</h2>
+                <div className="flex bg-surface-container-low rounded-lg p-1" role="tablist" aria-label="Table view">
+                  {(['map', 'list'] as const).map(v => (
+                    <button
+                      key={v}
+                      role="tab"
+                      aria-selected={tableView === v}
+                      onClick={() => setTableView(v)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1 ${tableView === v ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant'}`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{v === 'map' ? 'floor' : 'view_list'}</span>
+                      {v === 'map' ? 'Map' : 'List'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {tableView === 'map' ? (
+                <FloorPlanView
+                  tables={tablesWithOptimistic}
+                  selectedTableId={selectedTableId}
+                  onSelectTable={setSelectedTableId}
+                  now={now}
+                  onShowList={() => setTableView('list')}
+                />
+              ) : (
+              <>
               {/* FIX 7: Responsive grid — 1 col on very small screens, 2 cols from
                   xs upward.  Uses min-w-0 so text truncates instead of overflowing
                   on narrow viewports. */}
@@ -731,6 +762,8 @@ function CashierContent() {
                   <p className="text-on-surface-variant">No tables configured</p>
                   <p className="text-sm text-outline mt-1">Add tables in the admin panel</p>
                 </div>
+              )}
+              </>
               )}
 
               {/* Selected Table Actions — derived from live data, never stale */}

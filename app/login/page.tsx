@@ -16,15 +16,18 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   // If already authenticated, redirect to the role's landing page (must be in
-  // useEffect to avoid calling router.replace during render)
+  // useEffect to avoid calling router.replace during render).
+  // Skipped while a login is in progress: the NextAuth session becomes
+  // "authenticated" before the Firebase sign-in finishes, and leaving early
+  // would strand staff without a Firebase session (staff-only data fails).
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && !isLoading) {
       const role = session?.user?.role
       router.replace(role && ROLE_LANDING[role] ? ROLE_LANDING[role] : '/unauthorized')
     }
-  }, [status, session, router])
+  }, [status, session, router, isLoading])
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' && !isLoading) {
     return null
   }
 
@@ -84,6 +87,8 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error('Login error:', err)
+      // Don't leave a half-finished login (app session without Firebase session)
+      try { await signOut({ redirect: false }) } catch { /* ignore */ }
       setError('Something went wrong. Please try again.')
       setIsLoading(false)
     }
