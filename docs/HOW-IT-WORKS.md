@@ -51,3 +51,10 @@ They chime on arrival and every minute while a customer is waiting.
 | Admin | Owner / manager | `/admin` — menu, tables & QR codes, floor plan, settings |
 
 The cashier can switch the big left panel between **Menu** (to ring up walk-ins) and **Floor plan** (to see every table live).
+
+## QR codes & menu photos (admin)
+
+- **Every table's QR code contains a secret code.** Guests who scan it can order; someone who just types the address can only browse. Print codes from **Admin → Table Management**. If a code gets copied or photographed, tap **New code** on that table and reprint it.
+- **The QR address is automatic.** Online, it uses the website's address; while testing on a computer, it uses that computer's Wi-Fi address so phones on the same network can open it. Only set a custom address (e.g. your own domain) in **System Settings** if you need to.
+- **Menu photos need no setup.** In **Menu Manager**, tap *Upload a photo* — it's resized and saved with the dish automatically. No Cloudinary/imgbb account or API keys.
+- **Orders are private.** A customer's order page only opens on the phone that placed it. Staff can always see every order.

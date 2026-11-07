@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useCart, CartItem as CartItemType, Transaction } from '@/app/cashier/context/CartContext'
 import { Table, addOrder, updateTableStatus } from '@/lib/data'
 
-// Default tax rate — override via prop from settings
+// Fallback only — the cashier page passes the tax rate from Settings
 const DEFAULT_TAX_RATE = 8
 
 // Quick cash amount presets (in PHP)
@@ -133,7 +133,10 @@ export function CartSummary({ taxRate = DEFAULT_TAX_RATE, onComplete, tables = [
           status: 'preparing',
           paymentStatus: 'paid',
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'card', // rough mapping for cashier
-          total,
+          total: subtotal - computedDiscount, // same meaning as QR orders: items before tax
+          grandTotal: total,                  // what was actually charged
+          tipAmount: 0,
+          paidAt: Date.now(),
           orderType,
           createdAt: Date.now(),
           updatedAt: Date.now()

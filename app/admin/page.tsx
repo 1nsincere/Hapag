@@ -7,6 +7,8 @@ import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import FloorPlanEditor from './components/FloorPlanEditor'
 import { StaffGuide } from '@/app/components/StaffGuide'
+import { compressMenuPhoto } from '@/lib/imageCompress'
+import { useQrBaseUrl, cleanBaseUrl, type QrBaseSource } from '@/lib/useQrBaseUrl'
 import {
   listenToOrders,
   listenToMenu,
@@ -19,6 +21,9 @@ import {
   updateTableStatus,
   deleteTable,
   updateTable,
+  listenToTableTokens,
+  ensureTableTokens,
+  regenerateTableToken,
   Order,
   MenuItem,
   Table,
@@ -75,31 +80,59 @@ const TAG_CARD_STYLES: Record<MenuItemTag, string> = {
   vegan:      'bg-emerald-100 text-emerald-800',
 }
 
-// ─── Cloudinary Upload Helper ───────────────────────────────────────────────────
-async function uploadToCloudinary(file: File, cloudName: string, uploadPreset?: string): Promise<string> {
-  if (!cloudName) throw new Error('Cloudinary cloud name is not configured. Please add it in System Settings.')
-  if (!uploadPreset) throw new Error('Cloudinary upload preset is required for unsigned browser uploads. Create a preset in Cloudinary and enter its name in System Settings.')
-  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('upload_preset', uploadPreset)
-  const res = await fetch(endpoint, { method: 'POST', body: formData })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message ?? `Cloudinary upload failed (HTTP ${res.status})`)
-  }
-  const data = await res.json()
-  const imageUrl =
-    data?.secure_url ||
-    data?.url ||
-    (data?.public_id ? `https://res.cloudinary.com/${cloudName}/image/upload/${data.public_id}` : undefined)
-  if (!imageUrl || typeof imageUrl !== 'string') {
-    throw new Error('Cloudinary returned an unexpected response. Unable to determine uploaded image URL.')
-  }
-  return imageUrl
+type AdminView = 'insights' | 'menu' | 'qr' | 'floor' | 'settings'
+
+// ─── QR code address (automatic, with optional override) ───────────────────────
+const QR_SOURCE_TEXT: Record<QrBaseSource, string> = {
+  manual: 'Using the address you entered.',
+  invalid: 'That custom address isn’t a valid link (it must start with http:// or https://) — using the automatic address instead.',
+  site: 'Automatic — using this website’s address.',
+  lan: 'Automatic — using this computer’s Wi-Fi address so phones on the same network can open it.',
+  detecting: 'Detecting this computer’s network address…',
+  unavailable: 'Couldn’t detect a network address. Enter one below, or deploy the app online.',
 }
 
-type AdminView = 'insights' | 'menu' | 'qr' | 'floor' | 'settings'
+function QrAddressCard({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { base, source, candidates } = useQrBaseUrl(value)
+  const [override, setOverride] = useState(!!value)
+  return (
+    <div className="bg-white rounded-xl p-5 border border-zinc-100 shadow-sm">
+      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">QR code address</label>
+      <div className="flex items-center gap-4">
+        {base ? (
+          <div className="bg-white p-1.5 border border-zinc-200 rounded-lg shrink-0"><QRCodeSVG value={`${base}/menu/1`} size={72} /></div>
+        ) : (
+          <div className="w-[84px] h-[84px] rounded-lg bg-zinc-100 animate-pulse shrink-0" />
+        )}
+        <div className="min-w-0">
+          <p className="text-xs font-mono text-zinc-800 break-all">{base ? `${base}/menu/1` : '…'}</p>
+          <p className={`text-xs mt-1 ${source === 'unavailable' || source === 'invalid' ? 'text-amber-700' : 'text-emerald-700'}`}>{QR_SOURCE_TEXT[source]}</p>
+          <p className="text-[11px] text-zinc-400 mt-1">Scan this sample (Table 1) with your phone to check it opens the menu.</p>
+        </div>
+      </div>
+      {source === 'lan' && candidates.length > 1 && !override && (
+        <p className="text-[11px] text-zinc-500 mt-3">Other addresses on this computer: {candidates.slice(1).join(', ')}</p>
+      )}
+      <label className="flex items-center gap-2 mt-4 text-sm text-zinc-700 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={override}
+          onChange={e => { setOverride(e.target.checked); if (!e.target.checked) onChange('') }}
+          className="accent-orange-700"
+        />
+        Use a custom address (e.g. your own domain)
+      </label>
+      {override && (
+        <input
+          value={value}
+          placeholder="https://order.yourrestaurant.com"
+          onChange={e => onChange(e.target.value)}
+          className="mt-2 w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2 text-zinc-900 font-medium focus:ring-2 focus:ring-primary outline-none text-sm"
+        />
+      )}
+    </div>
+  )
+}
 
 // ─── Settings View ───────────────────────────────────────────────────────────────
 function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
@@ -109,7 +142,10 @@ function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
 
   const handleSave = async () => {
     try {
-      await saveSettings(settings)
+      // Old Cloudinary/imgbb fields are no longer used — drop them (settings are public)
+      const { cloudinaryApiKey: _k, cloudinaryCloudName: _c, cloudinaryUploadPreset: _u, imgbbApiKey: _i, ...clean } = settings
+      void _k; void _c; void _u; void _i
+      await saveSettings({ ...clean, baseUrl: cleanBaseUrl(clean.baseUrl) } as AppSettings)
       setSaved(true)
       setError(null)
       setTimeout(() => setSaved(false), 2000)
@@ -139,76 +175,20 @@ function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
           </div>
         ))}
 
-        <div className="bg-white rounded-xl p-5 border border-zinc-100 shadow-sm">
-          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Cloudinary Cloud Name</label>
-          <input
-            type="text"
-            value={settings.cloudinaryCloudName || settings.imgbbApiKey || ''}
-            onChange={e => setSettings({ ...settings, cloudinaryCloudName: e.target.value })}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2 text-zinc-900 font-medium focus:ring-2 focus:ring-primary outline-none text-sm"
-            placeholder="225392223786975"
-          />
-          <p className="text-[10px] text-zinc-500 mt-2">
-            Your Cloudinary cloud name is part of the image URL, for example:{' '}
-            <code className="font-mono">https://res.cloudinary.com/225392223786975/image/upload/menu1.jpg</code>
-          </p>
-        </div>
+        <QrAddressCard
+          value={settings.baseUrl ?? ''}
+          onChange={v => setSettings({ ...settings, baseUrl: v })}
+        />
 
-        <div className="bg-white rounded-xl p-5 border border-zinc-100 shadow-sm">
-          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Cloudinary Upload Preset</label>
-          <input
-            type="text"
-            value={settings.cloudinaryUploadPreset || ''}
-            onChange={e => setSettings({ ...settings, cloudinaryUploadPreset: e.target.value })}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2 text-zinc-900 font-medium focus:ring-2 focus:ring-primary outline-none text-sm"
-            placeholder="e.g. menu_upload"
-          />
-          <p className="text-[10px] text-zinc-500 mt-2">
-            Required for unsigned direct browser uploads. Create an unsigned preset in Cloudinary and enter its name here.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-xl p-5 border border-zinc-100 shadow-sm">
-          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Cloudinary API Key</label>
-          <input
-            type="password"
-            value={settings.cloudinaryApiKey || ''}
-            onChange={e => setSettings({ ...settings, cloudinaryApiKey: e.target.value })}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-2 text-zinc-900 font-medium focus:ring-2 focus:ring-primary outline-none text-sm"
-            placeholder="Optional: Cloudinary API Key"
-          />
-          <p className="text-[10px] text-zinc-500 mt-2">
-            Optional. If you want to keep your Cloudinary config in environment variables, use NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET.
-          </p>
-        </div>
-
-        <div className="bg-orange-50 rounded-xl p-5 border border-orange-200 shadow-sm">
-          <label className="block text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2">
-            System Base URL — Required for QR codes
-          </label>
-          <input
-            value={settings.baseUrl}
-            placeholder="e.g. http://192.168.1.5:3000"
-            onChange={e => setSettings({ ...settings, baseUrl: e.target.value })}
-            className="w-full bg-white border border-orange-200 rounded-lg px-4 py-2 text-zinc-900 font-medium focus:ring-2 focus:ring-primary outline-none text-sm"
-          />
-          {settings.baseUrl && (
-            <div className="mt-4 p-3 bg-white rounded-lg border border-orange-100 flex items-center gap-4">
-              <div className="bg-white p-1.5 border border-zinc-200 rounded-lg">
-                <QRCodeSVG value={`${settings.baseUrl}/menu/1`} size={64} />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider mb-1">Sample QR — Table 1</p>
-                <p className="text-xs font-mono text-zinc-600 break-all">{settings.baseUrl}/menu/1</p>
-                <p className="text-[10px] text-orange-500 mt-1">Scan with your phone to verify it opens the menu.</p>
-              </div>
-            </div>
-          )}
-          <p className="text-[10px] text-orange-600 mt-3 italic font-medium leading-relaxed">
-            * Must be your computer&apos;s local IP (e.g. <strong>http://192.168.1.42:3000</strong>), not localhost.
-            Both this machine and customer phones must be on the same Wi-Fi network.
-            Find your IP: Mac → System Settings → Wi-Fi → Details. Windows → ipconfig in terminal.
-          </p>
+        <div className="bg-white rounded-xl p-5 border border-zinc-100 shadow-sm flex gap-3">
+          <span className="material-symbols-outlined text-emerald-600">photo_camera</span>
+          <div>
+            <p className="text-sm font-bold text-zinc-900">Menu photos need no setup</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              Upload photos in Menu Manager — they&apos;re resized automatically and saved with each dish.
+              No Cloudinary, imgbb or API keys required.
+            </p>
+          </div>
         </div>
 
         <button
@@ -238,6 +218,17 @@ export default function AdminPage() {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null)
   const [tableToDelete, setTableToDelete] = useState<string | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const { base: qrBase, source: qrSource } = useQrBaseUrl(settings.baseUrl)
+
+  // Secret per-table QR codes — generated automatically for any table without one
+  const [tableTokens, setTableTokens] = useState<Record<number, string> | null>(null)
+  useEffect(() => listenToTableTokens(setTableTokens), [])
+  useEffect(() => {
+    if (tableTokens && tables.length) {
+      ensureTableTokens(tables.map(t => t.tableNumber), tableTokens).catch(err => console.error('[QR tokens]', err))
+    }
+  }, [tables, tableTokens])
+  const tableUrl = (n: number) => `${qrBase}/menu/${n}${tableTokens?.[n] ? `?t=${tableTokens[n]}` : ''}`
   const [printTable, setPrintTable] = useState<number | null>(null)
   const [copies, setCopies] = useState(1)
   // Auth — handled by NextAuth middleware; useSession gives us the user info
@@ -365,47 +356,19 @@ export default function AdminPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setImageUploadMsg('Please select a valid image file (JPG, PNG, WEBP, etc.)')
-      setImageUploadStatus('error')
-      return
-    }
-    if (file.size > 32 * 1024 * 1024) {
-      setImageUploadMsg('File too large — Cloudinary supports up to 32 MB.')
-      setImageUploadStatus('error')
-      return
-    }
-
-    // Show blob URL as instant preview — do NOT revoke until permanent URL is painted
-    const blobUrl = URL.createObjectURL(file)
-    setEditingItem(prev => prev ? { ...prev, image: blobUrl } : null)
     setImageUploadStatus('uploading')
-    setImageUploadMsg('Uploading to Cloudinary…')
-
+    setImageUploadMsg('Optimizing photo…')
     try {
-      const cloudName = settings.cloudinaryCloudName || settings.imgbbApiKey || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_IMGBB_API_KEY || ''
-      const uploadPreset = settings.cloudinaryUploadPreset || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ''
-      const permanentUrl = await uploadToCloudinary(file, cloudName, uploadPreset)
-
-      // Set permanent URL first — React will batch this state update and paint it
-      // before we revoke the blob, so there's no blank frame
-      setEditingItem(prev => {
-        // Only update if we're still editing the same item (or a new one)
-        if (!prev) return null
-        return { ...prev, image: permanentUrl }
-      })
+      // Resized + compressed in the browser and saved with the dish — no API keys
+      const photo = await compressMenuPhoto(file)
+      setEditingItem(prev => (prev ? { ...prev, image: photo.dataUrl } : null))
       setImageUploadStatus('done')
-      setImageUploadMsg('Uploaded successfully via Cloudinary ✓')
-
-      // Revoke the blob URL after a short delay to ensure React has painted
-      // the permanent URL before the browser discards the blob
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000)
+      setImageUploadMsg(`Photo ready (${photo.width}×${photo.height}, ${Math.round(photo.bytes / 1024)} KB) — click Save to keep it`)
     } catch (err: unknown) {
-      const error = err as Error
       setImageUploadStatus('error')
-      setImageUploadMsg(`Cloudinary upload failed: ${error.message}`)
-      // On failure keep the blob URL visible as preview — don't revoke
+      setImageUploadMsg((err as Error).message)
     }
   }
 
@@ -763,14 +726,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {!settings.baseUrl && (
+              {qrSource === 'unavailable' && (
                 <div className="mb-6 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 flex items-start gap-3">
                   <span className="material-symbols-outlined text-amber-500 mt-0.5">warning</span>
                   <div>
-                    <p className="text-sm font-bold text-amber-800">Base URL not configured — QR codes won&apos;t work on phones</p>
+                    <p className="text-sm font-bold text-amber-800">Couldn&apos;t detect this computer&apos;s network address — QR codes may not open on phones</p>
                     <p className="text-xs text-amber-700 mt-1">
-                      Go to <button onClick={() => setView('settings')} className="underline font-semibold">System Settings</button> and
-                      set the Base URL to your computer&apos;s local IP (e.g. <code className="font-mono bg-amber-100 px-1 rounded">http://192.168.1.42:3000</code>).
+                      Make sure this computer is on Wi-Fi, or open <button onClick={() => setView('settings')} className="underline font-semibold">System Settings</button> and
+                      enter an address (e.g. <code className="font-mono bg-amber-100 px-1 rounded">http://192.168.1.42:3000</code>). Once the app is online this happens automatically.
                     </p>
                   </div>
                 </div>
@@ -806,8 +769,8 @@ export default function AdminPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {tables.map(table => {
-                    const base = settings.baseUrl?.trim() || (typeof window !== 'undefined' ? window.location.origin : '')
-                    const url = `${base}/menu/${table.tableNumber}`
+                    const url = tableUrl(table.tableNumber)
+                    const hasToken = !!tableTokens?.[table.tableNumber]
                     return (
                       <div key={table.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden hover:shadow-xl transition-all">
                         <div className="p-6">
@@ -829,7 +792,19 @@ export default function AdminPage() {
                               <QRCodeSVG value={url} size={80} />
                             </div>
                           </div>
-                          <p className="text-[10px] font-mono text-zinc-400 text-center mb-3 break-all leading-snug px-1">{url}</p>
+                          <p className="text-[10px] font-mono text-zinc-400 text-center mb-2 break-all leading-snug px-1">{url}</p>
+                          <div className="flex items-center justify-center gap-3 mb-3 text-[11px] font-semibold">
+                            <a href={url} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-primary hover:underline ${hasToken ? '' : 'pointer-events-none opacity-40'}`}>
+                              <span className="material-symbols-outlined text-sm">open_in_new</span>Open as customer
+                            </a>
+                            <button
+                              onClick={() => { if (confirm(`Issue a new QR code for Table ${table.tableNumber}? Printed codes for this table will stop working.`)) regenerateTableToken(table.tableNumber) }}
+                              className="flex items-center gap-1 text-zinc-500 hover:text-zinc-800"
+                              title="Use if a QR code was copied or photographed"
+                            >
+                              <span className="material-symbols-outlined text-sm">autorenew</span>New code
+                            </button>
+                          </div>
                           <div className="flex gap-2">
                             <button onClick={() => setPrintTable(table.tableNumber)}
                               className="flex-1 px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold rounded-lg transition-colors active:scale-95 flex items-center justify-center gap-1">
@@ -1057,11 +1032,11 @@ export default function AdminPage() {
                       {imageUploadStatus === 'uploading' && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 text-white text-xs font-bold">
                           <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-                          Uploading…
+                          Optimizing…
                         </div>
                       )}
                       {imageUploadStatus === 'done' && (
-                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">✓ Saved</div>
+                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">✓ Ready</div>
                       )}
                     </div>
                   )}
@@ -1072,21 +1047,6 @@ export default function AdminPage() {
                     </p>
                   )}
 
-                  {!(settings.cloudinaryCloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) && (
-                    <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                      <p className="text-[11px] text-amber-700 font-semibold">
-                        ⚠️ Cloudinary cloud name not found. Enter it in System Settings or set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME.
-                      </p>
-                    </div>
-                  )}
-                  {settings.cloudinaryCloudName && !settings.cloudinaryUploadPreset && !process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET && (
-                    <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                      <p className="text-[11px] text-red-700 font-semibold">
-                        ⚠️ Upload preset required for unsigned uploads. Create an unsigned preset in Cloudinary and enter its name here.
-                      </p>
-                    </div>
-                  )}
-
                   <label className={`flex items-center gap-3 w-full bg-zinc-50 border-2 border-dashed rounded-xl px-4 py-3 cursor-pointer transition-colors group ${
                     imageUploadStatus === 'uploading' ? 'border-zinc-200 opacity-50 pointer-events-none' : 'border-zinc-200 hover:border-primary hover:bg-orange-50'
                   }`}>
@@ -1095,9 +1055,9 @@ export default function AdminPage() {
                     </span>
                     <div>
                       <p className="text-xs font-bold text-zinc-700 group-hover:text-primary transition-colors">
-                        {imageUploadStatus === 'uploading' ? 'Uploading…' : 'Choose from gallery'}
+                        {imageUploadStatus === 'uploading' ? 'Optimizing…' : 'Upload a photo'}
                       </p>
-                      <p className="text-[10px] text-zinc-400">JPG, PNG, WEBP · up to 32 MB</p>
+                      <p className="text-[10px] text-zinc-400">Any photo from your phone or computer · resized automatically</p>
                     </div>
                     <input type="file" accept="image/*" onChange={e => { resetImageState(); handleImageUpload(e) }} disabled={imageUploadStatus === 'uploading'} className="hidden" />
                   </label>
@@ -1109,9 +1069,9 @@ export default function AdminPage() {
                   </div>
                   <input
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-zinc-900 focus:ring-2 focus:ring-primary outline-none text-xs"
-                    value={editingItem.image?.startsWith('blob:') ? '' : (editingItem.image || '')}
+                    value={editingItem.image?.startsWith('blob:') || editingItem.image?.startsWith('data:') ? '' : (editingItem.image || '')}
                     onChange={e => { setEditingItem({ ...editingItem, image: e.target.value }); resetImageState() }}
-                    placeholder="https://images.unsplash.com/…"
+                    placeholder={editingItem.image?.startsWith('data:') ? 'Using your uploaded photo' : 'https://images.unsplash.com/…'}
                   />
                 </div>
                   {/* Stock */}
@@ -1187,7 +1147,7 @@ export default function AdminPage() {
                     }`}
                   >
                     {imageUploadStatus === 'uploading'
-                      ? <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Uploading…</>
+                      ? <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Optimizing photo…</>
                       : saveItemStatus === 'saving'
                       ? <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Saving…</>
                       : saveItemStatus === 'saved'
@@ -1210,8 +1170,7 @@ export default function AdminPage() {
                 <div className="max-w-[800px] mx-auto print:max-w-none print:w-full">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-6 print:grid-cols-2 print:gap-8 print:p-8 items-start">
                     {Array.from({ length: copies }).map((_, i) => {
-                      const base = settings.baseUrl?.trim() || (typeof window !== 'undefined' ? window.location.origin : '')
-                      const url = `${base}/menu/${printTable}`
+                      const url = tableUrl(printTable)
                       return (
                         <div key={i} className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-200 flex flex-col items-center text-center print:shadow-none print:border-2 print:border-zinc-800 print:break-inside-avoid">
                           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-6 print:bg-black">
@@ -1379,7 +1338,7 @@ export default function AdminPage() {
                   <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-100">
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">QR will link to</p>
                     <p className="text-xs font-mono text-zinc-600 break-all">
-                      {(settings.baseUrl?.trim() || (typeof window !== 'undefined' ? window.location.origin : 'http://your-ip:3000'))}/menu/{newTable.tableNumber}
+                      {qrBase || '…'}/menu/{newTable.tableNumber}
                     </p>
                   </div>
                 )}

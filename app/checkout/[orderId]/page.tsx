@@ -112,7 +112,7 @@ export default function CheckoutPage() {
       <MessageScreen
         icon="receipt_long"
         title="Order not found"
-        body="This order may have been removed. Please ask a member of staff for help."
+        body="This order can only be opened on the phone that placed it. Please ask a member of staff for help."
         action={<Link href="/" className="hp-btn hp-btn-ghost">Return home</Link>}
       />
     )
@@ -197,6 +197,9 @@ export default function CheckoutPage() {
   }
 
   const addOns = menuItems.filter(i => i.available).slice(0, 8)
+  // Uploaded photos live on the menu item, not on the order
+  const photoFor = (item: CartItem) =>
+    item.image || menuItems.find(m => m.id === (item.baseId ?? item.id.split('::')[0]))?.image || ''
 
   return (
     <div className="hp">
@@ -243,7 +246,7 @@ export default function CheckoutPage() {
           </div>
           {orderItems.map(item => (
             <div key={item.id} className="hp-line">
-              <DishImage src={item.image} alt={item.name} />
+              <DishImage src={photoFor(item)} alt={item.name} />
               <div className="hp-line-main">
                 <p className="hp-line-name">{item.name}</p>
                 <p className="hp-line-sub hp-num">

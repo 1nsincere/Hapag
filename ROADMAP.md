@@ -29,19 +29,16 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 customer UI redesign (Hapag Noir); end-to-end order run-through (26/28 checks pass); rules block self-paid orders and stock resets; cashier alert + chime for orders awaiting acceptance; kitchen chime fixed; `npm run seed:demo` demo data
 - 2026-11-07 floor plan editor (multi-floor, drag/resize/rotate tables, walls/bar/kitchen/etc., undo, snap) + live cashier map; login no longer redirects before Firebase sign-in finishes
 - 2026-11-07 one shared order-flow vocabulary + built-in "How it works" staff guide; persistent cashier action alerts (new order / call staff / ready to serve); real "Call staff"; tables stay occupied until cleared; cashier Menu ⇄ Floor plan switch; table history index
+- 2026-11-07 menu photos without API keys (browser-compressed WebP stored on the dish); automatic QR address (site address online, Wi-Fi IP while testing; typo-proof); one pricing formula (cashier counter + walk-ins now use Settings tax/service fee); private orders (device-bound); secret per-table QR codes enforced by rules
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.
 2. **Pre-create the 3 staff accounts in Firebase Auth** (console → Authentication) and turn off public sign-up if possible. Rules trust the email claim, so an unclaimed staff email can be grabbed.
 3. **Staff passwords are hard-coded** in `lib/auth.ts` (`admin123` etc.). Move to Firestore `users` collection (hashed) or Firebase Auth + custom claims via `firebase-admin` (already a dependency), then drop the dual NextAuth/Firebase login.
 4. **Set a real `NEXTAUTH_SECRET`** — code falls back to a public dev secret.
-5. **Cloudinary API key is stored in the `settings` doc, which is world-readable.** Keep only the cloud name + unsigned upload preset there.
 6. **Customer order prices are trusted from the phone** (confirmed by the 2026-11-07 run-through). Cashier now flags prices that don't match the menu, but the real fix is creating orders server-side (API route + `firebase-admin`) that look up menu prices — do this together with a real payment gateway (PayMongo), since payment is also still simulated.
-7. **Orders are world-readable** — anyone with an order ID can read it. Store the customer's anonymous uid on the order and restrict reads to that uid + staff.
-8. **Table QR links are guessable** (`/menu/1`). Add a per-table token to the QR URL.
 
 ## Next up — correctness 🟠
-6. Cashier payment modal hard-codes 8% tax (`/ 1.08` in `app/cashier/page.tsx`); use `settings.taxRate`.
 7. Customer quantity increases at checkout don't re-check/decrement stock.
 8. Table goes `available` right after payment even though guests are still eating (pay-first). Decide: free the table on "served", or add a manual "clear table" step in cashier.
 9. `QuickOrderPanel` and shift summary in `SettingsPanel` are stubs (not written to Firestore).

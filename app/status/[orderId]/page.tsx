@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { listenToOrder, createServiceRequest, Order, OrderStatus } from '@/lib/data'
+import { listenToOrder, listenToMenu, createServiceRequest, Order, OrderStatus, MenuItem, CartItem } from '@/lib/data'
 import {
   peso, pad2, shortId, delay, DishImage, TopBar, BottomNav, LoadingScreen, MessageScreen,
 } from '@/app/components/customer/ui'
@@ -24,6 +24,11 @@ export default function StatusPage() {
   const orderId = params.orderId as string
   const [order, setOrder] = useState<Order | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [menu, setMenu] = useState<MenuItem[]>([])
+  useEffect(() => listenToMenu(setMenu), [])
+  // Uploaded photos live on the menu item, not on the order
+  const photoFor = (item: CartItem) =>
+    item.image || menu.find(m => m.id === (item.baseId ?? item.id.split('::')[0]))?.image || ''
   const [callState, setCallState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   // Sends a real "Call staff" request to the cashier screen (cooldown: 30s)
@@ -51,7 +56,7 @@ export default function StatusPage() {
       <MessageScreen
         icon="receipt_long"
         title="Order not found"
-        body="This order may have been removed. Please ask a member of staff for help."
+        body="This order can only be opened on the phone that placed it. Please ask a member of staff for help."
         action={<Link href="/" className="hp-btn hp-btn-ghost">Return home</Link>}
       />
     )
@@ -119,7 +124,7 @@ export default function StatusPage() {
           <div>
             {order.items.map(item => (
               <div key={item.id} className="hp-line">
-                <DishImage src={item.image} alt={item.name} />
+                <DishImage src={photoFor(item)} alt={item.name} />
                 <div className="hp-line-main">
                   <p className="hp-line-name">{item.name}</p>
                   <p className="hp-line-sub">{item.quantity} × {peso(item.price)}{item.variantName ? ` · ${item.variantName}` : ''}</p>

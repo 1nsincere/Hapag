@@ -104,6 +104,8 @@ export default function MenuPage() {
   const [menuLoading, setMenuLoading] = useState(true)
   const [table, setTable] = useState<Table | null>(null)
   const [orderError, setOrderError] = useState('')
+  // Secret from the table's QR code (?t=…) — required to order, not to browse
+  const [qrToken, setQrToken] = useState<string | null>(null)
 
   // Dish detail sheet
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null)
@@ -121,6 +123,9 @@ export default function MenuPage() {
     try {
       const stored = sessionStorage.getItem('lastOrderId')
       if (stored) setLastOrderId(stored)
+      const fromQr = new URLSearchParams(window.location.search).get('t')
+      if (fromQr) sessionStorage.setItem(`hapag_qr_${tableNumber}`, fromQr)
+      setQrToken(fromQr ?? sessionStorage.getItem(`hapag_qr_${tableNumber}`))
       setShowWelcome(!sessionStorage.getItem(welcomeKey(tableNumber)))
     } catch {
       setShowWelcome(true)
@@ -269,6 +274,10 @@ export default function MenuPage() {
   // ─── Place order (pending → cashier confirms → guest pays) ────────────────
   const placeOrder = async () => {
     if (cart.length === 0) return
+    if (!qrToken) {
+      setOrderError('To order, please scan the QR code on your table.')
+      return
+    }
     setIsPlacing(true)
     setOrderError('')
     try {
@@ -291,6 +300,7 @@ export default function MenuPage() {
           updatedAt: now,
           total: cartTotal,
           orderType: 'dine-in',
+          qrToken,
         },
         undefined, // table occupancy is handled by the QR scan
       )
@@ -308,7 +318,7 @@ export default function MenuPage() {
         router.push(`/status/${orderId}`)
       } else {
         setIsPlacing(false)
-        setOrderError('We couldn’t send your order. Please try again.')
+        setOrderError('We couldn’t send your order. If this keeps happening, please scan the QR code on your table again.')
       }
     } catch (error) {
       setIsPlacing(false)
@@ -460,6 +470,12 @@ export default function MenuPage() {
             <p className="hp-muted hp-fade-up" style={delay(160)}>
               Order from your seat — we&apos;ll bring everything to Table {tableNumber}.
             </p>
+            {qrToken === null && showWelcome === false && (
+              <div className="hp-notice hp-fade-up" style={delay(200)}>
+                <span className="material-symbols-outlined">qr_code_scanner</span>
+                You&apos;re browsing the menu. To order, scan the QR code on your table.
+              </div>
+            )}
           </section>
         )}
 

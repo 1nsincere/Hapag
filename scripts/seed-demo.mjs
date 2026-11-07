@@ -13,6 +13,7 @@
  * Your own menu items, tables and orders are never touched.
  */
 import { readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { initializeApp, deleteApp } from 'firebase/app'
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
 import {
@@ -274,6 +275,17 @@ async function main() {
   })
   await tableBatch.commit()
 
+  // Secret QR codes — customers can only order with the table's code (?t=…)
+  const secrets = Object.fromEntries((await getDocs(collection(db, 'tableSecrets'))).docs.map(d => [d.id, d.data().token]))
+  const secretBatch = writeBatch(db)
+  for (const t of TABLES) {
+    if (!secrets[String(t.n)]) {
+      secrets[String(t.n)] = randomBytes(10).toString('base64url').slice(0, 14)
+      secretBatch.set(doc(db, 'tableSecrets', String(t.n)), { token: secrets[String(t.n)], createdAt: now })
+    }
+  }
+  await secretBatch.commit()
+
   // Orders
   let ordersAdded = 0
   if (WITH_ORDERS) {
@@ -309,7 +321,9 @@ async function main() {
   }
 
   console.log(`Added ${MENU.length} dishes, ${FLOORS.length} floors, ${tablesAdded} tables, ${ordersAdded} orders (all tagged demo: true)`)
-  console.log('\nTry it:  /menu/1 (free table)  ·  /cashier  ·  /kitchen  ·  /admin')
+  console.log('\nCustomer links (what each table QR opens — table 1 is free to order from):')
+  for (const t of TABLES) console.log(`  Table ${t.n}:  /menu/${t.n}?t=${secrets[String(t.n)]}`)
+  console.log('\nStaff:  /cashier  ·  /kitchen  ·  /admin  (Admin → Table Management shows every QR code)')
 }
 
 main()

@@ -54,19 +54,30 @@ service cloud.firestore {
 
     // ─── ORDERS ─────────────────────────────────────────
     match /orders/{order} {
-      allow read: if true;
-      // Staff can ring up paid walk-ins. Customers can only SEND an order —
-      // it must start unpaid and wait for the cashier to accept it.
+      // Private: staff see everything; a customer only sees orders placed from their own device.
+      allow read: if isAdminOrCashier() || isKitchen() ||
+        (isAuthenticated() && resource.data.customerUid == request.auth.uid);
+
+      // Staff can ring up paid walk-ins. Customers can only SEND an order:
+      //  • it starts unpaid and waits for the cashier to accept it
+      //  • it is tagged with their device
+      //  • it carries the secret from the table's QR code (no ordering from home)
       allow create: if isAdminOrCashier() ||
         (isAnonymous() &&
          request.resource.data.status == 'pending' &&
-         request.resource.data.paymentStatus == 'pending');
+         request.resource.data.paymentStatus == 'pending' &&
+         request.resource.data.customerUid == request.auth.uid &&
+         request.resource.data.tableNumber is int &&
+         exists(/databases/$(database)/documents/tableSecrets/$(string(request.resource.data.tableNumber))) &&
+         request.resource.data.qrToken ==
+           get(/databases/$(database)/documents/tableSecrets/$(string(request.resource.data.tableNumber))).data.token);
       
       // Staff can update freely. Anonymous customers may ONLY perform the
       // self-checkout transition: accepted + unpaid  →  preparing + paid,
       // optionally with adjusted items/total from the checkout page.
       allow update: if isAdminOrCashier() || isKitchen() ||
         (isAnonymous() &&
+         resource.data.customerUid == request.auth.uid &&
          resource.data.status == 'accepted' &&
          resource.data.paymentStatus == 'pending' &&
          request.resource.data.status == 'preparing' &&
@@ -75,6 +86,13 @@ service cloud.firestore {
            ['status', 'paymentStatus', 'paymentMethod', 'tipAmount', 'grandTotal', 'paidAt', 'updatedAt', 'items', 'total']));
 
       allow delete: if isAdmin();
+    }
+
+    // ─── TABLE QR SECRETS ───────────────────────────────
+    // Keyed by table number. Only the admin can see them (to print QR codes);
+    // the order rules above read them server-side to validate customer orders.
+    match /tableSecrets/{tableNumber} {
+      allow read, write: if isAdmin();
     }
 
     // ─── SERVICE REQUESTS ("Call staff") ─────────────────

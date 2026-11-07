@@ -15,6 +15,10 @@ import {
 } from 'firebase/firestore';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { orderSafeImage } from './imageCompress';
+
+/** Strip embedded (uploaded) photos from order items — they live on the menu item */
+const slimItems = (items: CartItem[]) => items.map(i => ({ ...i, image: orderSafeImage(i.image) }))
 
 export const ensureAuth = async () => {
   return new Promise((resolve, reject) => {
@@ -72,6 +76,7 @@ const ORDERS_COL   = 'orders'
 const TABLES_COL   = 'tables'
 const FLOORS_COL   = 'floors'
 const SERVICE_COL  = 'serviceRequests'
+const SECRETS_COL  = 'tableSecrets'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TABLE MANAGEMENT
@@ -305,6 +310,42 @@ export async function saveFloorPlan(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TABLE QR TOKENS
+// Each table's QR code carries a secret (?t=…). Orders from customers must
+// include it — the security rules check it against tableSecrets/{tableNumber},
+// which only the admin can read. Stops fake orders typed in from home.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function newToken() {
+  const bytes = new Uint8Array(9)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => b.toString(36).padStart(2, '0')).join('').slice(0, 14)
+}
+
+/** Admin only — tableNumber → token */
+export function listenToTableTokens(callback: (tokens: Record<number, string>) => void) {
+  return listenWhenSignedIn(() => onSnapshot(
+    collection(db, SECRETS_COL),
+    snap => callback(Object.fromEntries(snap.docs.map(d => [Number(d.id), String(d.data().token ?? '')]))),
+    error => console.error('[listenToTableTokens] Firestore error:', error)
+  ))
+}
+
+/** Admin only — create tokens for tables that don't have one yet */
+export async function ensureTableTokens(tableNumbers: number[], existing: Record<number, string>) {
+  const missing = tableNumbers.filter(n => n > 0 && !existing[n])
+  if (!missing.length) return
+  const batch = writeBatch(db)
+  missing.forEach(n => batch.set(doc(db, SECRETS_COL, String(n)), { token: newToken(), createdAt: Date.now() }))
+  await batch.commit()
+}
+
+/** Admin only — issue a new code (old printed QR codes stop working) */
+export async function regenerateTableToken(tableNumber: number) {
+  await setDoc(doc(db, SECRETS_COL, String(tableNumber)), { token: newToken(), createdAt: Date.now() })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -422,6 +463,9 @@ export interface Order {
   tipAmount?: number
   grandTotal?: number
   paidAt?: number
+  // ── Security ─────────────────────────────────────────────────────────────
+  customerUid?: string   // device (anonymous Firebase user) that placed it — only it + staff can read
+  qrToken?: string       // secret from the table's QR code — proves the order came from the table
 }
 
 /**
@@ -448,6 +492,8 @@ export async function addOrder(
     const orderRef = doc(collection(db, ORDERS_COL))
     batch.set(orderRef, {
       ...order,
+      items: slimItems(order.items),
+      customerUid: auth.currentUser?.uid ?? null,
       status: options?.preserveStatus ? (order.status ?? 'pending') : 'pending',
       paymentStatus: options?.preserveStatus ? (order.paymentStatus ?? 'pending') : 'pending',
       createdAt: now,
@@ -548,7 +594,7 @@ export async function processPaymentAndActivateOrder(
     // If the customer adjusted quantities at checkout, persist the final items
     // so the kitchen cooks exactly what was paid for.
     await updateDoc(doc(db, ORDERS_COL, orderId), {
-      ...(finalItems ? { items: finalItems.items, total: finalItems.total } : {}),
+      ...(finalItems ? { items: slimItems(finalItems.items), total: finalItems.total } : {}),
       paymentStatus: 'paid',
       paymentMethod,
       tipAmount,
@@ -616,10 +662,18 @@ export function listenToMenu(callback: (items: MenuItem[]) => void) {
   )
 }
 
+/**
+ * A single order. Orders are private: only the device that placed it (and
+ * staff) can read it, so this waits for the Firebase session first. If this
+ * device can't read it (another phone's order / cleared browser) → null.
+ */
 export function listenToOrder(id: string, callback: (order: Order | null) => void) {
-  return onSnapshot(
-    doc(db, ORDERS_COL, id),
-    snap => callback(snap.exists() ? ({ id: snap.id, ...snap.data() } as Order) : null),
-    error => console.error('[listenToOrder] Firestore error — check security rules:', error)
+  return listenWhenSignedIn(
+    () => onSnapshot(
+      doc(db, ORDERS_COL, id),
+      snap => callback(snap.exists() ? ({ id: snap.id, ...snap.data() } as Order) : null),
+      error => { console.warn('[listenToOrder] cannot read order on this device:', error.code); callback(null) }
+    ),
+    () => { ensureAuth().catch(() => callback(null)) }
   )
 }

@@ -18,6 +18,7 @@ import { StaffGuide } from '@/app/components/StaffGuide'
 import { stageOf, TONE_CLASSES } from '@/lib/orderFlow'
 import { TableBadge } from '@/app/components/atoms/TableBadge'
 import { tableColor } from '@/lib/tableColors'
+import { orderTotals } from '@/lib/pricing'
 import { listenToMenu, listenToTables, listenToOrders, MenuItem, CATEGORIES, Table, TableStatus, updateTableStatus, clearTableAfterPayment, Order, updateOrderStatus, processPaymentAndActivateOrder, listenToSettings, AppSettings, DEFAULT_SETTINGS, markOrderServed, listenToOpenServiceRequests, resolveServiceRequest, ServiceRequest } from '@/lib/data'
 
 function CashierContent() {
@@ -65,6 +66,8 @@ function CashierContent() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash')
 
   const { addTransaction, recentTransactions, items: cartItems } = useCart()
+  // Amount due when the cashier takes payment for a QR order (same formula as customer checkout)
+  const due = payingOrder ? orderTotals(payingOrder.total, settings) : null
 
   const getOrderStatusLabel = useCallback((order: Order) => stageOf(order.status).label, [])
 
@@ -531,6 +534,7 @@ function CashierContent() {
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 lg:p-6 pt-0">
           {activeTab === 'cart' ? (
             <CartSummary
+              taxRate={parseFloat(settings.taxRate) || 0}
               onComplete={handleTransactionComplete}
               tables={tablesWithOptimistic}
               selectedTableId={selectedTableId}
@@ -1141,23 +1145,23 @@ function CashierContent() {
                         ))}
                       </div>
                       
-                      {/* Calculations (Estimating tax from total if not stored perfectly, assuming 8% tax) */}
+                      {/* Totals — same formula as the customer's checkout (Settings tax % + service fee) */}
                       <div className="border-t border-outline-variant pt-4 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-on-surface-variant">Subtotal</span>
-                          <span className="text-on-surface">₱{(payingOrder.total / 1.08).toFixed(2)}</span>
+                          <span className="text-on-surface">₱{due!.subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-on-surface-variant">Tax (8%)</span>
-                          <span className="text-on-surface">₱{(payingOrder.total - (payingOrder.total / 1.08)).toFixed(2)}</span>
+                          <span className="text-on-surface-variant">Tax ({due!.taxRate}%)</span>
+                          <span className="text-on-surface">₱{due!.tax.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-on-surface-variant">Discount</span>
-                          <span className="text-on-surface">₱{0.00.toFixed(2)}</span>
+                          <span className="text-on-surface-variant">Service fee</span>
+                          <span className="text-on-surface">₱{due!.serviceFee.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-end pt-3 border-t border-outline-variant">
                           <span className="text-lg font-bold text-on-surface">Total Due</span>
-                          <span className="text-3xl font-bold font-mono text-primary">₱{payingOrder.total.toFixed(2)}</span>
+                          <span className="text-3xl font-bold font-mono text-primary">₱{due!.total.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1233,7 +1237,7 @@ function CashierContent() {
                           </button>
                         ))}
                         <button
-                          onClick={() => setPaymentReceivedStr(payingOrder.total.toString())}
+                          onClick={() => setPaymentReceivedStr(due!.total.toFixed(2))}
                           className="col-span-4 py-3 border-2 border-primary text-primary hover:bg-primary/10 rounded-xl font-bold transition-colors"
                         >
                           Exact Amount
@@ -1243,34 +1247,35 @@ function CashierContent() {
                       <div className="bg-surface-container-low p-5 rounded-2xl flex justify-between items-center border border-outline-variant">
                         <span className="font-bold text-on-surface-variant text-lg">Change:</span>
                         <span className={`text-3xl font-mono font-bold ${
-                          (parseFloat(paymentReceivedStr) || 0) >= payingOrder.total ? 'text-green-600' : 'text-red-500'
+                          (parseFloat(paymentReceivedStr) || 0) >= due!.total ? 'text-green-600' : 'text-red-500'
                         }`}>
-                          ₱{Math.max(0, (parseFloat(paymentReceivedStr) || 0) - payingOrder.total).toFixed(2)}
+                          ₱{Math.max(0, (parseFloat(paymentReceivedStr) || 0) - due!.total).toFixed(2)}
                         </span>
                       </div>
                     </div>
 
                     <button
-                      disabled={isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(paymentReceivedStr) || 0) < payingOrder.total)}
+                      disabled={isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(paymentReceivedStr) || 0) < due!.total)}
                       onClick={async () => {
-                        const paymentReceived = paymentMethod === 'cash' ? (parseFloat(paymentReceivedStr) || 0) : payingOrder.total
-                        const change = paymentMethod === 'cash' ? Math.max(0, paymentReceived - payingOrder.total) : 0
-                        if (paymentMethod === 'cash' && paymentReceived < payingOrder.total) return
+                        const amountDue = due!.total
+                        const paymentReceived = paymentMethod === 'cash' ? (parseFloat(paymentReceivedStr) || 0) : amountDue
+                        const change = paymentMethod === 'cash' ? Math.max(0, paymentReceived - amountDue) : 0
+                        if (paymentMethod === 'cash' && paymentReceived < amountDue) return
                         setIsProcessingPayment(true)
                         try {
                           await processPaymentAndActivateOrder(
                             payingOrder.id,
                             paymentMethod === 'digital' ? 'qrph' : paymentMethod,
                             0,
-                            payingOrder.total
+                            amountDue
                           )
                           const transaction: Transaction = {
                             id: payingOrder.id,
                             items: payingOrder.items,
-                            subtotal: payingOrder.total / 1.08,
-                            tax: payingOrder.total - (payingOrder.total / 1.08),
+                            subtotal: due!.subtotal,
+                            tax: due!.tax,
                             discount: 0,
-                            total: payingOrder.total,
+                            total: amountDue,
                             paymentReceived,
                             change,
                             timestamp: new Date(),
@@ -1287,7 +1292,7 @@ function CashierContent() {
                         }
                       }}
                       className={`w-full py-5 rounded-2xl font-bold text-xl transition-all flex justify-center items-center gap-2 shadow-sm ${
-                        isProcessingPayment || (parseFloat(paymentReceivedStr) || 0) < payingOrder.total
+                        isProcessingPayment || (paymentMethod === 'cash' && (parseFloat(paymentReceivedStr) || 0) < due!.total)
                           ? 'bg-surface-variant text-on-surface-variant cursor-not-allowed opacity-70'
                           : 'bg-primary text-white hover:bg-primary/90 active:scale-95 hover:shadow-lg hover:shadow-primary/20'
                       }`}
