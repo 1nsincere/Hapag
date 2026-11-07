@@ -20,8 +20,17 @@ service cloud.firestore {
     match /menu/{item} {
       allow read: if true;
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || 
-        ((isAnonymous() || isCashier()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'available']));
+      // Cashier may toggle availability / adjust stock. Customers may only
+      // DECREASE stock when ordering (and mark an item sold out) — never
+      // restock or bring a sold-out dish back.
+      allow update: if isAdmin() ||
+        (isCashier() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'available'])) ||
+        (isAnonymous() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'available']) &&
+         request.resource.data.stock is number && resource.data.stock is number &&
+         request.resource.data.stock >= 0 &&
+         request.resource.data.stock <= resource.data.stock &&
+         (request.resource.data.available == resource.data.available || request.resource.data.available == false));
     }
 
     // ─── SETTINGS ───────────────────────────────────────
@@ -44,7 +53,12 @@ service cloud.firestore {
     // ─── ORDERS ─────────────────────────────────────────
     match /orders/{order} {
       allow read: if true;
-      allow create: if isAnonymous() || isAdminOrCashier(); // Customers and staff can place orders
+      // Staff can ring up paid walk-ins. Customers can only SEND an order —
+      // it must start unpaid and wait for the cashier to accept it.
+      allow create: if isAdminOrCashier() ||
+        (isAnonymous() &&
+         request.resource.data.status == 'pending' &&
+         request.resource.data.paymentStatus == 'pending');
       
       // Staff can update freely. Anonymous customers may ONLY perform the
       // self-checkout transition: accepted + unpaid  →  preparing + paid,

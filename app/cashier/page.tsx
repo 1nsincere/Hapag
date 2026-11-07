@@ -56,12 +56,32 @@ function CashierContent() {
 
   const getOrderStatusLabel = useCallback((order: Order) => {
     if (order.status === 'preparing' && order.paymentStatus === 'paid') return 'Paid'
-    if (order.status === 'pending') return 'Pending payment'
+    if (order.status === 'pending') return 'Awaiting acceptance'
     if (order.status === 'in-progress') return 'In progress'
     if (order.status === 'ready') return 'Ready'
     if (order.status === 'served') return 'Served'
     return 'Preparing'
   }, [])
+
+  // Customer order prices come from their phone. Until orders are created
+  // server-side, flag anything that doesn't match the live menu so the
+  // cashier can catch tampering before accepting / taking payment.
+  const menuPriceFor = useCallback((item: Order['items'][number]): number | null => {
+    const menu = menuItems.find(m => m.id === (item.baseId ?? item.id.split('::')[0]))
+    if (!menu) return null
+    if (item.variantName) return menu.variants?.find(v => v.name === item.variantName)?.price ?? null
+    return menu.price
+  }, [menuItems])
+
+  const checkOrderPrices = useCallback((order: Order) => {
+    const itemsSum = order.items.reduce((s, i) => s + i.price * i.quantity, 0)
+    const totalMismatch = Math.abs(itemsSum - order.total) > 0.009
+    const priceMismatch = order.items.some(i => {
+      const expected = menuPriceFor(i)
+      return expected !== null && Math.abs(expected - i.price) > 0.009
+    })
+    return { totalMismatch, priceMismatch, hasIssue: totalMismatch || priceMismatch }
+  }, [menuPriceFor])
 
   useEffect(() => {
     const unsubMenu = listenToMenu(setMenuItems)
@@ -489,12 +509,30 @@ function CashierContent() {
                               <span className="text-sm font-mono text-orange-800 font-bold">₱{order.total.toFixed(2)}</span>
                             </div>
                             <div className="space-y-2 mb-4 bg-white/60 p-3 rounded-lg">
-                              {order.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-sm">
-                                  <span className="font-medium text-on-surface">{item.quantity}x {item.name}</span>
-                                  <span className="text-on-surface-variant">₱{(item.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                              ))}
+                              {(() => {
+                                const check = checkOrderPrices(order)
+                                return check.hasIssue && (
+                                  <p className="text-xs font-bold text-red-600 flex items-center gap-1 pb-1">
+                                    <span className="material-symbols-outlined text-sm">warning</span>
+                                    {check.totalMismatch ? 'Total doesn’t add up' : 'Prices don’t match the menu'} — check before continuing
+                                  </p>
+                                )
+                              })()}
+                              {order.items.map((item, idx) => {
+                                const expected = menuPriceFor(item)
+                                const mismatch = expected !== null && Math.abs(expected - item.price) > 0.009
+                                return (
+                                  <div key={idx} className="flex justify-between text-sm">
+                                    <span className="font-medium text-on-surface">{item.quantity}x {item.name}</span>
+                                    <span
+                                      className={mismatch ? 'text-red-600 font-bold' : 'text-on-surface-variant'}
+                                      title={mismatch ? `Menu price is ₱${expected!.toFixed(2)}` : undefined}
+                                    >
+                                      {mismatch && `menu ₱${expected!.toFixed(2)} · `}₱{(item.price * item.quantity).toFixed(2)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
                             </div>
                             <button
                               onClick={async () => {
@@ -538,12 +576,30 @@ function CashierContent() {
                               <span className="text-sm font-mono text-blue-800 font-bold">₱{order.total.toFixed(2)}</span>
                             </div>
                             <div className="space-y-2 mb-4 bg-white/60 p-3 rounded-lg">
-                              {order.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-sm">
-                                  <span className="font-medium text-on-surface">{item.quantity}x {item.name}</span>
-                                  <span className="text-on-surface-variant">₱{(item.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                              ))}
+                              {(() => {
+                                const check = checkOrderPrices(order)
+                                return check.hasIssue && (
+                                  <p className="text-xs font-bold text-red-600 flex items-center gap-1 pb-1">
+                                    <span className="material-symbols-outlined text-sm">warning</span>
+                                    {check.totalMismatch ? 'Total doesn’t add up' : 'Prices don’t match the menu'} — check before continuing
+                                  </p>
+                                )
+                              })()}
+                              {order.items.map((item, idx) => {
+                                const expected = menuPriceFor(item)
+                                const mismatch = expected !== null && Math.abs(expected - item.price) > 0.009
+                                return (
+                                  <div key={idx} className="flex justify-between text-sm">
+                                    <span className="font-medium text-on-surface">{item.quantity}x {item.name}</span>
+                                    <span
+                                      className={mismatch ? 'text-red-600 font-bold' : 'text-on-surface-variant'}
+                                      title={mismatch ? `Menu price is ₱${expected!.toFixed(2)}` : undefined}
+                                    >
+                                      {mismatch && `menu ₱${expected!.toFixed(2)} · `}₱{(item.price * item.quantity).toFixed(2)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
                             </div>
                             <button
                               onClick={() => {

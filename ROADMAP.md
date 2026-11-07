@@ -26,6 +26,7 @@ _Last reviewed: 2026-11-07_
 - Firestore security rules per role
 - 2026-11-07 cleanup: removed stale `Qr_Wawo-s/` copy (already merged), customer self-checkout now allowed by rules, login hardening, `middleware` → `proxy`, `.env.example`
 - 2026-11-07 renamed product to **Hapag**; restaurant name now always comes from admin Settings (incl. cashier header)
+- 2026-11-07 customer UI redesign (Hapag Noir); end-to-end order run-through (26/28 checks pass); rules block self-paid orders and stock resets; cashier alert + chime for orders awaiting acceptance; kitchen chime fixed; `npm run seed:demo` demo data
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.
@@ -33,6 +34,9 @@ _Last reviewed: 2026-11-07_
 3. **Staff passwords are hard-coded** in `lib/auth.ts` (`admin123` etc.). Move to Firestore `users` collection (hashed) or Firebase Auth + custom claims via `firebase-admin` (already a dependency), then drop the dual NextAuth/Firebase login.
 4. **Set a real `NEXTAUTH_SECRET`** — code falls back to a public dev secret.
 5. **Cloudinary API key is stored in the `settings` doc, which is world-readable.** Keep only the cloud name + unsigned upload preset there.
+6. **Customer order prices are trusted from the phone** (confirmed by the 2026-11-07 run-through). Cashier now flags prices that don't match the menu, but the real fix is creating orders server-side (API route + `firebase-admin`) that look up menu prices — do this together with a real payment gateway (PayMongo), since payment is also still simulated.
+7. **Orders are world-readable** — anyone with an order ID can read it. Store the customer's anonymous uid on the order and restrict reads to that uid + staff.
+8. **Table QR links are guessable** (`/menu/1`). Add a per-table token to the QR URL.
 
 ## Next up — correctness 🟠
 6. Cashier payment modal hard-codes 8% tax (`/ 1.08` in `app/cashier/page.tsx`); use `settings.taxRate`.

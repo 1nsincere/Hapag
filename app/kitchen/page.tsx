@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useSession, signOut as nextAuthSignOut } from 'next-auth/react'
 import { signOut as firebaseSignOut } from 'firebase/auth'
 import { db, auth } from '@/lib/firebase'
+import { playChime } from '@/lib/chime'
 import {
   collection, query, where, orderBy, limit,
   getDocs, startAfter, onSnapshot, QueryDocumentSnapshot
@@ -412,7 +413,7 @@ export default function KitchenPage() {
     const newIds = orders.filter(o => o.status === 'preparing' && !prevLiveIdsRef.current.has(o.id) && prevLiveIdsRef.current.size > 0)
 
     if (newIds.length > 0) {
-      new Audio('/chime.mp3').play().catch(() => { })
+      playChime()
       setFlashingOrders(new Set(newIds.map(o => o.id)))
       setTimeout(() => setFlashingOrders(new Set()), 5000)
 

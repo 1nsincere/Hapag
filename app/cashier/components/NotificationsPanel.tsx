@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { listenToOrders, listenToTables, Order, Table } from '@/lib/data'
+import { playChime } from '@/lib/chime'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,15 +71,27 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
         return
       }
       orders.forEach(o => {
+        const pendingKey = `${o.id}:pending`
         const newKey  = `${o.id}:new`
         const readyKey = `${o.id}:ready`
-        // New order placed
+        const itemCount = `${o.items.length} item${o.items.length !== 1 ? 's' : ''}`
+        // Customer sent an order — this is the step that needs the cashier
+        if (o.status === 'pending' && !seenOrders.current.has(pendingKey)) {
+          seenOrders.current.add(pendingKey)
+          playChime()
+          push({
+            type: 'new_order',
+            title: 'Order needs accepting',
+            body: `Table ${o.tableNumber} sent an order (${itemCount})`,
+          })
+        }
+        // Order paid and sent to the kitchen (customer checkout or walk-in)
         if (o.status === 'preparing' && !seenOrders.current.has(newKey)) {
           seenOrders.current.add(newKey)
           push({
-            type: 'new_order',
-            title: 'New Order',
-            body: `Table ${o.tableNumber} placed an order (${o.items.length} item${o.items.length !== 1 ? 's' : ''})`,
+            type: 'payment_done',
+            title: o.tableNumber ? 'Paid — sent to kitchen' : 'Takeout paid — sent to kitchen',
+            body: o.tableNumber ? `Table ${o.tableNumber} (${itemCount})` : itemCount,
           })
         }
         // Order marked ready by kitchen
@@ -110,7 +123,11 @@ export function NotificationsPanel({ open, onClose, onUnreadChange }: Notificati
             body: `Table ${t.tableNumber} has been cleared after payment`,
           })
         }
-        if (t.status === 'occupied') seenTables.current.add(`${t.id}:occupied`)
+        if (t.status === 'occupied') {
+          seenTables.current.add(`${t.id}:occupied`)
+          // New seating — allow the next payment on this table to notify again
+          seenTables.current.delete(paidKey)
+        }
       })
     })
     return unsub
