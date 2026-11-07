@@ -7,6 +7,18 @@ import { ROLE_LANDING, UserRole } from '@/lib/auth'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 
+const isNetworkError = (err: unknown) => (err as { code?: string })?.code === 'auth/network-request-failed'
+
+/** Retry a Firebase call a couple of times when the connection blips (patchy restaurant Wi-Fi). */
+async function withNetworkRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try { return await fn() } catch (err) {
+      if (!isNetworkError(err) || i >= attempts) throw err
+      await new Promise(r => setTimeout(r, 1200 * i))
+    }
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { status, data: session } = useSession()
@@ -54,13 +66,13 @@ export default function LoginPage() {
 
       // 2. Sign into Firebase Auth so Firestore security rules see the staff email
       try {
-        await signInWithEmailAndPassword(auth, email, password)
+        await withNetworkRetry(() => signInWithEmailAndPassword(auth, email, password))
       } catch (err) {
         const code = (err as { code?: string }).code
         if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
           // First login for a seeded staff account — create its Firebase user
           try {
-            await createUserWithEmailAndPassword(auth, email, password)
+            await withNetworkRetry(() => createUserWithEmailAndPassword(auth, email, password))
           } catch (createErr) {
             if ((createErr as { code?: string }).code === 'auth/email-already-in-use') {
               await signOut({ redirect: false })
@@ -89,7 +101,9 @@ export default function LoginPage() {
       console.error('Login error:', err)
       // Don't leave a half-finished login (app session without Firebase session)
       try { await signOut({ redirect: false }) } catch { /* ignore */ }
-      setError('Something went wrong. Please try again.')
+      setError(isNetworkError(err)
+        ? 'Can’t reach the login server. Check the internet connection and try again.'
+        : 'Something went wrong. Please try again.')
       setIsLoading(false)
     }
   }

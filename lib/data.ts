@@ -28,7 +28,14 @@ export const ensureAuth = async () => {
         resolve(user)
       } else {
         try {
-          const result = await signInAnonymously(auth)
+          // Retry briefly on connection blips (patchy restaurant Wi-Fi)
+          let result
+          for (let attempt = 1; ; attempt++) {
+            try { result = await signInAnonymously(auth); break } catch (err) {
+              if ((err as { code?: string }).code !== 'auth/network-request-failed' || attempt >= 3) throw err
+              await new Promise(r => setTimeout(r, 1200 * attempt))
+            }
+          }
           resolve(result.user)
         } catch (error) {
           console.error("Anonymous auth failed:", error)

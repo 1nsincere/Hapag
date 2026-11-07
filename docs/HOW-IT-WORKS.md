@@ -41,6 +41,12 @@ Alerts only appear when someone has to do something, and stay until it's done:
 
 They chime on arrival and every minute while a customer is waiting.
 
+## Cashier tips
+
+- **Show served / Hide served** (QR Orders tab) — served orders are hidden by default to keep the list short. Nothing is deleted.
+- **End shift** (gear icon) — shows the shift total and signs you out so the next cashier logs in with their own account.
+- If several alerts arrive at once, tap **Minimise** — they shrink to a pill and pop back open when something new arrives. Repeated "Call staff" taps from one table show as one card (×2, ×3…).
+
 ## Screens
 
 | Screen | Who | Address |

@@ -21,7 +21,7 @@ const ACK_KEY = 'hapag_alert_acks'
 const MAX_VISIBLE = 3
 
 type Alert =
-  | { id: string; kind: 'call'; request: ServiceRequest; at: number }
+  | { id: string; kind: 'call'; tableNumber: number; requests: ServiceRequest[]; at: number }
   | { id: string; kind: 'new'; order: Order; at: number }
   | { id: string; kind: 'ready'; order: Order; at: number }
 
@@ -53,7 +53,17 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
 
   const alerts = useMemo<Alert[]>(() => {
     const list: Alert[] = [
-      ...requests.map(r => ({ id: `call:${r.id}`, kind: 'call' as const, request: r, at: r.createdAt })),
+      // One card per table, however many times the guest tapped "Call staff"
+      ...Object.values(requests.reduce<Record<number, ServiceRequest[]>>((acc, r) => {
+        (acc[r.tableNumber] ??= []).push(r)
+        return acc
+      }, {})).map(group => ({
+        id: `call:t${group[0].tableNumber}`,
+        kind: 'call' as const,
+        tableNumber: group[0].tableNumber,
+        requests: group,
+        at: Math.min(...group.map(r => r.createdAt)),
+      })),
       ...orders.filter(o => o.status === 'pending').map(o => ({ id: `new:${o.id}`, kind: 'new' as const, order: o, at: o.createdAt })),
       ...orders.filter(o => o.status === 'ready' && !acks.has(`ready:${o.id}`))
         .map(o => ({ id: `ready:${o.id}`, kind: 'ready' as const, order: o, at: o.updatedAt ?? o.createdAt })),
@@ -149,8 +159,8 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         const isBusy = busy === a.id
         if (a.kind === 'call') {
           return (
-            <Card key={a.id} tone="red" icon="front_hand" title={<><TableBadge tableNumber={a.request.tableNumber} size="sm" /> is calling for staff</>} meta={ago(a.at, now)}>
-              <button disabled={isBusy} onClick={() => run(a.id, () => onResolveRequest(a.request))} className="flex-1 h-10 rounded-lg bg-red-600 text-white font-bold text-sm hover:bg-red-700 disabled:opacity-50">
+            <Card key={a.id} tone="red" icon="front_hand" title={<><TableBadge tableNumber={a.tableNumber} size="sm" /> is calling for staff{a.requests.length > 1 && <span className="text-red-700">×{a.requests.length}</span>}</>} meta={`first call ${ago(a.at, now)}`}>
+              <button disabled={isBusy} onClick={() => run(a.id, async () => { await Promise.all(a.requests.map(r => onResolveRequest(r))) })} className="flex-1 h-10 rounded-lg bg-red-600 text-white font-bold text-sm hover:bg-red-700 disabled:opacity-50">
                 {isBusy ? 'Saving…' : 'On my way'}
               </button>
             </Card>

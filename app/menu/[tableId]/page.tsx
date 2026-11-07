@@ -137,8 +137,11 @@ export default function MenuPage() {
     const unsub = listenToTables(tables => {
       const found = tables.find(t => t.tableNumber === tableNumber)
       setTable(found ?? null)
-      // Scanning the QR code seats the guest — auto-occupy an available table
-      if (found && found.status === 'available') updateTableStatus(found.id, 'occupied')
+      // Scanning the table's QR code seats the guest — but only with the table's
+      // secret code, so someone browsing /menu/5 from home can't flip tables
+      let fromQr = false
+      try { fromQr = !!(new URLSearchParams(window.location.search).get('t') || sessionStorage.getItem(`hapag_qr_${tableNumber}`)) } catch { /* ignore */ }
+      if (found && found.status === 'available' && fromQr) updateTableStatus(found.id, 'occupied')
     })
     return () => unsub()
   }, [tableNumber])

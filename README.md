@@ -35,8 +35,22 @@ firebase deploy --only firestore:rules
 
 Demo staff accounts are defined in `lib/auth.ts` (development only — see roadmap).
 
+## Testing
+
+Run these before showing the app to anyone or after changing code:
+
+```bash
+npm run seed:demo    # demo menu, tables, floors and orders (only touches demo data)
+npm run test:rules   # 38 checks of the database security rules, as each role
+npm run test:e2e     # clicks through every screen in Edge: order → accept → pay → kitchen → serve → clear (needs npm run dev)
+```
+
+Both tests clean up the data they create.
+
 ## Scripts
 
 - `npm run dev` — dev server on `0.0.0.0`
 - `npm run build` / `npm start` — production build
 - `npm run lint` — ESLint
+- `npm run seed:demo` / `npm run seed:demo:remove` — load / remove demo data
+- `npm run test:rules` / `npm run test:e2e` — automated tests (see Testing)

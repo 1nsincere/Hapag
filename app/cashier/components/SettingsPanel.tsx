@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { Transaction } from '@/app/cashier/context/CartContext'
+import { signOut as nextAuthSignOut } from 'next-auth/react'
+import { signOut as firebaseSignOut } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 
 interface SettingsPanelProps {
   open: boolean
@@ -50,14 +53,14 @@ export function SettingsPanel({ open, onClose, recentTransactions }: SettingsPan
   const shiftOrders = recentTransactions.length
   const avgOrder = shiftOrders > 0 ? shiftTotal / shiftOrders : 0
 
-  const handleEndShift = () => {
+  const handleEndShift = async () => {
     const confirmed = window.confirm(
-      `End shift for ${cashierName}?\n\nShift summary:\n• Orders: ${shiftOrders}\n• Total sales: ₱${shiftTotal.toFixed(2)}`
+      `End shift for ${cashierName}?\n\nShift summary:\n• Orders: ${shiftOrders}\n• Total sales: ₱${shiftTotal.toFixed(2)}\n\nYou'll be signed out so the next cashier can log in.`
     )
-    if (confirmed) {
-      // In a real app: write shift record to Firebase, then redirect to login
-      window.location.href = '/'
-    }
+    if (!confirmed) return
+    // Sign out of both Firebase and the app session, then back to the login screen
+    try { await firebaseSignOut(auth) } catch (e) { console.error('Firebase sign-out error', e) }
+    await nextAuthSignOut({ callbackUrl: '/login' })
   }
 
   if (!open) return null

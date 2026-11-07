@@ -53,7 +53,8 @@ function CashierContent() {
   // applied locally before Firebase confirms the write.  Merged during render so
   // the UI updates instantly and reverts automatically once real data arrives.
   const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, TableStatus>>({})
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  // Served orders pile up during a shift — hide them by default (nothing is deleted)
+  const [showServed, setShowServed] = useState(false)
   const [showTableHistory, setShowTableHistory] = useState<Table | null>(null)
   const [tableView, setTableView] = useState<'map' | 'list'>('map')
   // Left side shows either the menu grid or a large floor map
@@ -542,16 +543,17 @@ function CashierContent() {
             />
           ) : activeTab === 'orders' ? (
             <div className="space-y-6">
-              {/* Clear Orders Button */}
+              {/* Show / hide served orders (view only — nothing is deleted) */}
               {orders.length > 0 && (
                 <div className="flex justify-between items-center">
                   <h2 className="font-bold text-lg text-on-surface">QR Orders</h2>
                   <button
-                    onClick={() => setShowClearConfirm(true)}
-                    className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => setShowServed(v => !v)}
+                    aria-pressed={showServed}
+                    className="px-4 py-2 bg-white border border-outline-variant hover:bg-surface-container-high text-on-surface-variant text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
                   >
-                    <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                    Clear All
+                    <span className="material-symbols-outlined text-sm">{showServed ? 'visibility_off' : 'visibility'}</span>
+                    {showServed ? 'Hide served' : `Show served (${orders.filter(o => o.status === 'served').length})`}
                   </button>
                 </div>
               )}
@@ -698,12 +700,12 @@ function CashierContent() {
                   )}
 
                   {/* Acknowledged Orders Section */}
-                  {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted').length > 0 && (
+                  {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted' && (showServed || o.status !== 'served')).length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">
                         In the kitchen &amp; served
                       </h3>
-                      {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted').map(order => {
+                      {orders.filter(o => o.status !== 'pending' && o.status !== 'accepted' && (showServed || o.status !== 'served')).map(order => {
                         const table = tablesWithOptimistic.find(t => t.tableNumber === order.tableNumber)
                         const timeString = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         return (
@@ -990,32 +992,6 @@ function CashierContent() {
       </div>{/* end two-column body */}
 
       {/* Clear Orders Confirm Modal */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-surface rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-6 text-center border border-outline-variant">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-red-600 text-3xl">delete_sweep</span>
-            </div>
-            <h3 className="text-xl font-bold text-on-surface mb-2">Clear All QR Orders?</h3>
-            <p className="text-sm text-on-surface-variant mb-8">Are you sure? This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="flex-1 py-3 border border-outline text-on-surface hover:bg-surface-variant transition-colors rounded-xl font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setOrders([]); setShowClearConfirm(false); }}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-700 transition-colors text-white rounded-xl font-bold shadow-sm active:scale-95"
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Table Order History Modal */}
       {showTableHistory && (
         <TableOrderHistoryModal

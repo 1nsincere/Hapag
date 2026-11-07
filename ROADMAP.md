@@ -30,6 +30,7 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 floor plan editor (multi-floor, drag/resize/rotate tables, walls/bar/kitchen/etc., undo, snap) + live cashier map; login no longer redirects before Firebase sign-in finishes
 - 2026-11-07 one shared order-flow vocabulary + built-in "How it works" staff guide; persistent cashier action alerts (new order / call staff / ready to serve); real "Call staff"; tables stay occupied until cleared; cashier Menu ⇄ Floor plan switch; table history index
 - 2026-11-07 menu photos without API keys (browser-compressed WebP stored on the dish); automatic QR address (site address online, Wi-Fi IP while testing; typo-proof); one pricing formula (cashier counter + walk-ins now use Settings tax/service fee); private orders (device-bound); secret per-table QR codes enforced by rules
+- 2026-11-07 bug sweep: `npm run test:rules` (38 rule checks) + `npm run test:e2e` (37-step click-through, 37/37) added; fixed End shift (now signs out), "Clear All" (replaced by non-destructive Show/Hide served), auto-seating without the table QR code, staff calls grouped per table, login/customer sign-in retry on network blips, persistent offline cache (changes survive refresh/Wi-Fi drops)
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.
@@ -51,4 +52,3 @@ _Last reviewed: 2026-11-07_
 - Split the very large page files (`admin`, `cashier`, `kitchen`, `menu` are 1,000–1,500 lines each)
 - Hapag brand assets: logo, favicon, brand colors, landing/sales page
 - Floor plan: show the live map on the kitchen screen too; drag tables to merge/split parties; reservations on the map
-- Add tests for the order/payment lifecycle and Firestore rules (emulator)
