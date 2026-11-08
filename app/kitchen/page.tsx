@@ -231,10 +231,11 @@ function LiveClock({ now }: { now: number }) {
   const d = new Date(now)
   return (
     <div className="text-right">
-      <p className="text-primary leading-none text-2xl font-black">
+      {/* The clock ticks between server render and page load — that difference is expected */}
+      <p className="text-primary leading-none text-2xl font-black" suppressHydrationWarning>
         {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
       </p>
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-slate-400" suppressHydrationWarning>
         {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
       </p>
     </div>

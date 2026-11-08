@@ -11,7 +11,8 @@
     "seed:demo:remove": "node scripts/seed-demo.mjs --remove",
     "test:rules": "node scripts/test/rules.cjs .",
     "test:e2e": "node scripts/test/e2e.cjs",
-    "create-owner": "node scripts/create-owner.mjs"
+    "create-owner": "node scripts/create-owner.mjs",
+    "dev:demo": "node scripts/dev-demo.mjs"
   },
   "dependencies": {
     "firebase": "^12.12.1",
