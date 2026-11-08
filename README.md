@@ -8,7 +8,7 @@ Each restaurant sets its own brand colour and light/dark look in Admin → Syste
 
 Built with Next.js 16, React 19, Tailwind 4, Firebase (Firestore + Auth) and NextAuth.
 
-See **[ROADMAP.md](ROADMAP.md)** for how the system works, what's done and what's next.
+See **[ROADMAP.md](ROADMAP.md)** for how the system works, what's done and what's next, and **[PRODUCTION-CHECKLIST.md](PRODUCTION-CHECKLIST.md)** for what's left before selling.
 
 ## Setup
 
