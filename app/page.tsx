@@ -1,34 +1,38 @@
-'use client'
+/**
+ * Home.
+ *  • Demo site (NEXT_PUBLIC_DEMO_MODE=true): the Hapag showcase landing page
+ *  • Restaurant site: the restaurant's "scan the code on your table" welcome
+ */
+import type { Metadata } from 'next'
+import { DEMO_MODE } from '@/lib/demo'
+import Welcome from './components/Welcome'
+import Landing from './components/landing/Landing'
 
-import { useState, useEffect } from 'react'
-import { listenToSettings, AppSettings, DEFAULT_SETTINGS } from '@/lib/data'
-import { delay, PoweredBy } from '@/app/components/customer/ui'
+export const dynamic = 'force-dynamic'
 
-export default function Home() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+export async function generateMetadata(): Promise<Metadata> {
+  if (!DEMO_MODE) return {}
+  return {
+    title: 'Hapag — Every table is a front door',
+    description: 'QR ordering and POS for Filipino restaurants. Guests scan, order and pay from their seat; cashier, kitchen and owner see it the same second. Try the live demo.',
+    openGraph: {
+      title: 'Hapag — Every table is a front door',
+      description: 'QR ordering and POS for Filipino restaurants. Try the live demo.',
+      images: ['/landing/guest-menu.jpg'],
+    },
+  }
+}
 
-  useEffect(() => listenToSettings(setSettings), [])
+export default async function Home() {
+  if (!DEMO_MODE) return <Welcome />
 
-  return (
-    <div className="hp hp-welcome">
-      <div className="hp-glow" aria-hidden="true" />
-      <div className="hp-frame" aria-hidden="true" />
-
-      <main className="hp-welcome-content">
-        <p className="hp-eyebrow hp-fade-up">Welcome to</p>
-        <h1 className="hp-welcome-name hp-fade-up" style={delay(100)}>{settings.restaurantName}</h1>
-        <div className="hp-ornament hp-fade-up" style={delay(200)}><i /></div>
-
-        <div className="hp-fade-up" style={{ ...delay(320), marginTop: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div className="hp-orb"><span className="material-symbols-outlined">qr_code_scanner</span></div>
-          <h2 className="hp-title-sm">Scan the code on your table</h2>
-          <p className="hp-muted" style={{ maxWidth: 320 }}>
-            Point your phone&apos;s camera at the QR code to browse the menu, order and pay — no app needed.
-          </p>
-        </div>
-      </main>
-
-      <PoweredBy inline={false} />
-    </div>
-  )
+  let guestPath = '/menu/1'
+  try {
+    const { ensureDemoReady, demoInfo } = await import('@/lib/server/demo')
+    await ensureDemoReady()
+    guestPath = (await demoInfo())?.guestPath ?? guestPath
+  } catch (e) {
+    console.error('[landing] demo setup', e)
+  }
+  return <Landing guestPath={guestPath} />
 }

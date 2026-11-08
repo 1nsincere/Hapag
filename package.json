@@ -10,7 +10,8 @@
     "seed:demo": "node scripts/seed-demo.mjs",
     "seed:demo:remove": "node scripts/seed-demo.mjs --remove",
     "test:rules": "node scripts/test/rules.cjs .",
-    "test:e2e": "node scripts/test/e2e.cjs"
+    "test:e2e": "node scripts/test/e2e.cjs",
+    "create-owner": "node scripts/create-owner.mjs"
   },
   "dependencies": {
     "firebase": "^12.12.1",

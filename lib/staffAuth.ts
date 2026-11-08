@@ -15,18 +15,6 @@ const JWKS = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'),
 )
 
-/**
- * Bootstrap only: the original demo accounts keep their role until the owner
- * creates staff profiles (Admin → Staff, or `npm run seed:demo`). Once a
- * profile exists for an account, the profile always wins. Mirrored in
- * firestore.rules (legacyRole).
- */
-export const BOOTSTRAP_ROLES: Record<string, UserRole> = {
-  'admin@restaurant.com': 'admin',
-  'cashier@restaurant.com': 'cashier',
-  'kitchen@restaurant.com': 'kitchen',
-}
-
 export async function verifyFirebaseIdToken(idToken: string) {
   const { payload } = await jwtVerify(idToken, JWKS, {
     issuer: `https://securetoken.google.com/${PROJECT_ID}`,

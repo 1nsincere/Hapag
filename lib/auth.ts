@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.idToken) return null
         // Imported lazily so the edge/proxy bundle never pulls in jose/fetch helpers
-        const { verifyFirebaseIdToken, fetchStaffProfile, BOOTSTRAP_ROLES } = await import('./staffAuth')
+        const { verifyFirebaseIdToken, fetchStaffProfile } = await import('./staffAuth')
         try {
           const { uid, email } = await verifyFirebaseIdToken(credentials.idToken)
           const profile = await fetchStaffProfile(uid, credentials.idToken)
@@ -46,9 +46,8 @@ export const authOptions: NextAuthOptions = {
             if (!profile.active) return null // deactivated by the owner
             return { id: uid, email, name: profile.name || email, role: profile.role }
           }
-          // No profile yet → only the original demo accounts may sign in (bootstrap)
-          const bootstrap = BOOTSTRAP_ROLES[email]
-          if (bootstrap) return { id: uid, email, name: email.split('@')[0], role: bootstrap }
+          // No staff profile = not staff. (The owner account is created with
+          // `npm run create-owner`; everyone else in Admin → Staff.)
           return null
         } catch (err) {
           console.error('[auth] staff login rejected:', (err as Error).message)

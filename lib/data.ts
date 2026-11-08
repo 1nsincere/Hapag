@@ -18,6 +18,7 @@ import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { orderSafeImage } from './imageCompress';
 import { DEFAULT_TAX_RATE, DEFAULT_SERVICE_FEE } from './pricing';
+import { DEMO_MODE, demoBlocked, demoTag } from './demo';
 
 /** Strip embedded (uploaded) photos from order items — they live on the menu item */
 const slimItems = (items: CartItem[]) => items.map(i => ({ ...i, image: orderSafeImage(i.image) }))
@@ -129,6 +130,7 @@ export async function getTables(): Promise<Table[]> {
 }
 
 export async function createTable(table: Omit<Table, 'id' | 'createdAt' | 'updatedAt'>) {
+  if (demoBlocked('Adding tables')) return null
   try {
     const docRef = await addDoc(collection(db, TABLES_COL), {
       ...table,
@@ -160,6 +162,7 @@ export async function updateTableStatus(tableId: string, status: TableStatus, or
 }
 
 export async function deleteTable(tableId: string) {
+  if (demoBlocked('Deleting tables')) return
   try {
     await deleteDoc(doc(db, TABLES_COL, tableId))
   } catch (error) {
@@ -168,6 +171,7 @@ export async function deleteTable(tableId: string) {
 }
 
 export async function updateTable(tableId: string, updates: Partial<Table>) {
+  if (demoBlocked('Editing tables')) return
   try {
     await updateDoc(doc(db, TABLES_COL, tableId), { ...updates, updatedAt: Date.now() })
   } catch (error) {
@@ -292,6 +296,7 @@ export function listenToFloors(callback: (floors: Floor[]) => void, onError?: (e
 }
 
 export async function createFloor(floor: Omit<Floor, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  if (demoBlocked('Adding floors')) return ''
   const now = Date.now()
   const ref = await addDoc(collection(db, FLOORS_COL), { ...floor, createdAt: now, updatedAt: now })
   return ref.id
@@ -299,6 +304,7 @@ export async function createFloor(floor: Omit<Floor, 'id' | 'createdAt' | 'updat
 
 /** Deletes a floor; its tables go back to "not placed" (they are never deleted). */
 export async function deleteFloor(floorId: string, tableIdsOnFloor: string[]) {
+  if (demoBlocked('Deleting floors')) return
   const batch = writeBatch(db)
   batch.delete(doc(db, FLOORS_COL, floorId))
   tableIdsOnFloor.forEach(id => batch.update(doc(db, TABLES_COL, id), { floorId: null, updatedAt: Date.now() }))
@@ -310,6 +316,7 @@ export async function saveFloorPlan(
   floors: Pick<Floor, 'id' | 'name' | 'order' | 'width' | 'height' | 'elements'>[],
   tables: { id: string; layout: TableLayout }[],
 ) {
+  if (demoBlocked('Saving the floor plan')) throw new Error('Saving the floor plan is turned off in the demo.')
   const now = Date.now()
   const batch = writeBatch(db)
   floors.forEach(f => {
@@ -350,6 +357,7 @@ export function listenToTableTokens(callback: (tokens: Record<number, string>) =
  * QR codes already printed for that table.
  */
 export async function ensureTableTokens(tableNumbers: number[], existing: Record<number, string>) {
+  if (DEMO_MODE) return // demo QR codes are created by the server
   const missing = tableNumbers.filter(n => n > 0 && !existing[n])
   for (const n of missing) {
     const ref = doc(db, SECRETS_COL, String(n))
@@ -362,6 +370,7 @@ export async function ensureTableTokens(tableNumbers: number[], existing: Record
 
 /** Admin only — issue a new code (old printed QR codes stop working) */
 export async function regenerateTableToken(tableNumber: number) {
+  if (demoBlocked('Issuing new QR codes')) return
   await setDoc(doc(db, SECRETS_COL, String(tableNumber)), { token: newToken(), createdAt: Date.now() })
 }
 
@@ -380,6 +389,12 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
+  if (DEMO_MODE) {
+    // Demo visitors can try the brand look; the other settings stay as they are
+    await updateDoc(doc(db, SETTINGS_COL, 'general'), { brandColor: settings.brandColor ?? '', themeMode: settings.themeMode ?? 'light' })
+    demoBlocked('Changing settings other than the brand look')
+    return
+  }
   await setDoc(doc(db, SETTINGS_COL, 'general'), settings)
 }
 
@@ -427,6 +442,15 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function saveMenuItem(item: Partial<MenuItem>) {
+  if (DEMO_MODE) {
+    // Demo: availability / stock toggles work; adding or rewriting dishes doesn't
+    if (!item.id) { demoBlocked('Adding dishes'); return }
+    const patch: Partial<MenuItem> = {}
+    if (item.available !== undefined) patch.available = item.available
+    if (item.stock !== undefined) patch.stock = item.stock
+    if (Object.keys(patch).length) await updateDoc(doc(db, MENU_COL, item.id), patch)
+    return
+  }
   try {
     if (item.id) {
       const { id, ...data } = item
@@ -445,6 +469,7 @@ export async function saveMenuItem(item: Partial<MenuItem>) {
 }
 
 export async function deleteMenuItem(id: string) {
+  if (demoBlocked('Deleting dishes')) return
   try {
     await deleteDoc(doc(db, MENU_COL, id))
   } catch (error) {
@@ -520,6 +545,7 @@ export async function addOrder(
       ...order,
       items: slimItems(order.items),
       customerUid: auth.currentUser?.uid ?? null,
+      ...demoTag(),
       status: options?.preserveStatus ? (order.status ?? 'pending') : 'pending',
       paymentStatus: options?.preserveStatus ? (order.paymentStatus ?? 'pending') : 'pending',
       createdAt: now,
@@ -650,7 +676,7 @@ export interface ServiceRequest {
 
 export async function createServiceRequest(tableNumber: number): Promise<void> {
   await ensureAuth()
-  await addDoc(collection(db, SERVICE_COL), { tableNumber, type: 'staff', status: 'open', createdAt: Date.now() })
+  await addDoc(collection(db, SERVICE_COL), { tableNumber, type: 'staff', status: 'open', createdAt: Date.now(), ...demoTag() })
 }
 
 /** Staff screens only — open requests, oldest first */

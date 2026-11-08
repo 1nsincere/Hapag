@@ -13,6 +13,7 @@ import { randomBytes } from 'crypto'
 import type { Firestore } from 'firebase-admin/firestore'
 import type { PaidEvent, PaymentProvider } from './types'
 import { practiceProvider } from './practice'
+import { demoTag } from '@/lib/demo'
 
 const SESSION_TTL_MS = 30 * 60 * 1000
 
@@ -58,6 +59,7 @@ export async function startOnlinePayment(db: Firestore, input: {
     expiresAt: now + SESSION_TTL_MS,
     successUrl,
     cancelUrl,
+    ...demoTag(),
   })
 
   const { checkoutUrl, providerRef } = await provider.createCheckout({

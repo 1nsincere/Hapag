@@ -16,22 +16,19 @@ service cloud.firestore {
     function staffPath() { return /databases/$(database)/documents/staff/$(request.auth.uid); }
     function hasStaffProfile() { return isAuthenticated() && !isAnonymous() && exists(staffPath()); }
 
-    // Bootstrap only: the original demo accounts keep their role until a profile
-    // exists for them (mirrors BOOTSTRAP_ROLES in lib/staffAuth.ts).
-    function legacyRole() {
-      let email = request.auth.token.get('email', '');
-      return email == 'admin@restaurant.com' ? 'admin'
-        : email == 'cashier@restaurant.com' ? 'cashier'
-        : email == 'kitchen@restaurant.com' ? 'kitchen'
-        : '';
-    }
-
     function role() {
       return !isAuthenticated() || isAnonymous() ? ''
         : hasStaffProfile()
           ? (get(staffPath()).data.get('active', true) == true ? get(staffPath()).data.role : '')
-          : legacyRole();
+          : '';
     }
+
+    // Public demo accounts (portfolio site): staff profile has demo: true.
+    // They can run service (orders, tables, stock, brand colour) but can't
+    // delete or rename things, or touch staff accounts. Nightly reset restores data.
+    function isDemo() { return hasStaffProfile() && get(staffPath()).data.get('demo', false) == true; }
+    function isOwner() { return role() == 'admin' && !isDemo(); }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
 
     function isAdmin() { return role() == 'admin'; }
     function isCashier() { return role() == 'cashier'; }
@@ -41,26 +38,30 @@ service cloud.firestore {
     // ─── MENU ───────────────────────────────────────────
     match /menu/{item} {
       allow read: if true;
-      allow create, delete: if isAdmin();
-      // Cashier may toggle availability / adjust stock. Customers never write
-      // the menu — the server reserves stock when they order (lib/server/orders.ts).
-      allow update: if isAdmin() ||
-        (isCashier() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'available']));
+      allow create, delete: if isOwner();
+      // Cashier (and demo admin) may toggle availability / adjust stock. Customers never
+      // write the menu — the server reserves stock when they order (lib/server/orders.ts).
+      allow update: if isOwner() ||
+        ((isCashier() || isAdmin()) && onlyChanges(['stock', 'available']));
     }
 
     // ─── SETTINGS ───────────────────────────────────────
     match /settings/{setting} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isOwner();
+      // Demo visitors may try the brand colour / light-dark switch
+      allow update: if isAdmin() && isDemo() && onlyChanges(['brandColor', 'themeMode']);
     }
 
     // ─── TABLES ─────────────────────────────────────────
     match /tables/{table} {
       allow read: if true;
-      allow create, delete: if isAdminOrCashier();
+      allow create, delete: if isAdminOrCashier() && !isDemo();
       // A customer scanning the QR can only seat themselves (available → occupied).
-      // Freeing or reserving a table is staff-only.
-      allow update: if isAdminOrCashier() || isKitchen() ||
+      // Freeing or reserving a table is staff-only. Demo staff can seat/clear/reserve
+      // but not move, rename or resize tables.
+      allow update: if ((isAdminOrCashier() || isKitchen()) && !isDemo()) ||
+        ((isAdminOrCashier() || isKitchen()) && isDemo() && onlyChanges(['status', 'currentOrderId', 'occupiedAt', 'updatedAt'])) ||
         (isAnonymous() &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'currentOrderId', 'occupiedAt', 'updatedAt']) &&
          resource.data.status == 'available' &&
@@ -79,14 +80,15 @@ service cloud.firestore {
       allow create: if isAdminOrCashier();
       allow update: if isAdminOrCashier() || isKitchen();
 
-      allow delete: if isAdmin();
+      allow delete: if isOwner();
     }
 
     // ─── TABLE QR SECRETS ───────────────────────────────
     // Keyed by table number. Only the admin can see them (to print QR codes);
     // The order server (/api/orders) checks them when a customer orders.
     match /tableSecrets/{tableNumber} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isOwner();
     }
 
     // ─── SERVICE REQUESTS ("Call staff") ─────────────────
@@ -96,14 +98,15 @@ service cloud.firestore {
         request.resource.data.status == 'open' &&
         request.resource.data.type == 'staff' &&
         request.resource.data.tableNumber is int;
-      allow read, update, delete: if isAdminOrCashier() || isKitchen();
+      allow read, update: if isAdminOrCashier() || isKitchen();
+      allow delete: if (isAdminOrCashier() || isKitchen()) && !isDemo();
     }
 
     // ─── FLOOR PLANS ────────────────────────────────────
     // Staff screens show the layout; only the admin can edit it.
     match /floors/{floor} {
       allow read: if isAdminOrCashier() || isKitchen();
-      allow write: if isAdmin();
+      allow write: if isOwner();
     }
 
     // ─── USERS ──────────────────────────────────────────
@@ -112,12 +115,12 @@ service cloud.firestore {
     // An admin can never demote or deactivate themselves (no accidental lock-out).
     match /staff/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
-      allow create, update: if isAdmin() &&
+      allow create, update: if isOwner() &&
         request.resource.data.role in ['admin', 'cashier', 'kitchen'] &&
         request.resource.data.active is bool &&
         request.resource.data.name is string && request.resource.data.name.size() > 0 &&
         (uid != request.auth.uid || (request.resource.data.role == 'admin' && request.resource.data.active == true));
-      allow delete: if isAdmin() && uid != request.auth.uid;
+      allow delete: if isOwner() && uid != request.auth.uid;
     }
 
     match /{document=**} {

@@ -34,7 +34,7 @@ The clock starts when the restaurant sends the day-1 items below.
 No payment account needed. Online payments and Hapag Complete come after the pilot.
 
 ### Must-haves (checklist items, with estimates)
-- [ ] 1.1 + 1.3: Remove the demo login fallback; owner account setup; require a real secret (1 day)
+- [ ] 1.3: Require a real secret (½ day). *(1.1 done)*
 - [ ] 1.2: Staff accounts made by the server; turn off public sign-up (½ day)
 - [ ] 1.4 + 1.5: "Ordering paused" switch, plus an outage test (1 day)
 - [ ] 1.6: Counter-payment-only mode (½ day)
@@ -78,12 +78,14 @@ online payments and Hapag Complete come after the pilot.
 
 ## Portfolio demo (before sharing a public link)
 
-- [ ] **You** Deploy the database rules (see 0.1)
-- [ ] **You** Deploy on Vercel with a real `NEXTAUTH_SECRET`, `FIREBASE_SERVICE_ACCOUNT` and `PAYMENT_PROVIDER=practice`
-- [ ] **You** Admin → System Settings: clear the saved custom QR address (`http://192.168.1.74:3000`), then Save
-- [ ] **You** Don't publish the admin password. Share a table QR link for the customer side, plus screenshots or a screen recording of the staff screens.
-- [ ] **You** *(recommended)* Use a separate Firebase project just for the portfolio, so visitors never touch real data
-- [ ] **Me** *(optional, M)* Demo mode: explorable staff screens with limited permissions, and demo data that resets nightly
+Step-by-step: [docs/DEPLOY-DEMO.md](docs/DEPLOY-DEMO.md)
+
+- [x] **Me** Demo mode + showcase landing page: one-click Guest/Cashier/Kitchen/Owner, demo accounts restricted by the rules, nightly reset (`NEXT_PUBLIC_DEMO_MODE=true`)
+- [ ] **You** Deploy the database rules (see 0.1). **Required:** the demo restrictions live in the rules.
+- [ ] **You** Deploy on Vercel with the variables in docs/DEPLOY-DEMO.md (incl. `NEXT_PUBLIC_DEMO_MODE` and `CRON_SECRET`)
+- [ ] **You** Edit `lib/site.ts` (your name / links)
+- [ ] **You** *(recommended)* A separate Firebase project just for the demo, so visitors never share data with your own testing
+- [x] ~~Clear the saved QR address~~ (the demo clears home-network addresses itself)
 
 ---
 
@@ -101,7 +103,7 @@ online payments and Hapag Complete come after the pilot.
 
 ## Phase 1: Safe for a real restaurant (security and reliability)
 
-- [ ] **1.1 Me (M):** Remove the demo login fallback (demo emails get roles without a staff profile). Replace it with a one-time "create owner account" setup. *Must fix before any client.*
+- [x] **1.1 Me (M):** Remove the demo login fallback (demo emails got roles without a staff profile). Done: no profile = no access; new restaurants get their owner with `npm run create-owner -- email "Name"`. *Takes effect when the rules are deployed (0.1).*
 - [ ] **1.2 Me + You (M):** Staff accounts created by the server, so public sign-up can be turned off in Firebase.
 - [ ] **1.3 Me (S):** In production, refuse to start without a real `NEXTAUTH_SECRET` (no public fallback secret).
 - [ ] **1.4 Me (M):** "Ordering paused" safety switch: if the cashier screen is offline for about 2 min, QR ordering pauses with a clear message to guests.

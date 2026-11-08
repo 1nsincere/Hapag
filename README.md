@@ -10,6 +10,13 @@ Built with Next.js 16, React 19, Tailwind 4, Firebase (Firestore + Auth) and Nex
 
 See **[ROADMAP.md](ROADMAP.md)** for how the system works, what's done and what's next, and **[PRODUCTION-CHECKLIST.md](PRODUCTION-CHECKLIST.md)** for what's left before selling.
 
+## Live demo / portfolio
+
+Set `NEXT_PUBLIC_DEMO_MODE=true` to turn `/` into the showcase landing page with one-click demo entry (restricted demo accounts, nightly reset).
+See **[docs/DEPLOY-DEMO.md](docs/DEPLOY-DEMO.md)**. Never use demo mode for a real restaurant.
+
+New restaurant? Create the owner's admin login with `npm run create-owner -- owner@restaurant.ph "Owner Name"`.
+
 ## Setup
 
 ```bash

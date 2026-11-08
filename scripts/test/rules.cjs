@@ -118,11 +118,13 @@ async function snapshotScreens(db, orderId, tableId, label) {
 
     // ── 2. customer sends order (through the server) ──
     step('2. CUSTOMER sends an order: 2× ZZ TEST Adobo — phone claims ₱1 each, server must charge ₱250')
-    const direct = await attempt(() => writeBatch(customer.db).set(doc(collection(customer.db, 'orders')), {
+    const directRef = doc(collection(customer.db, 'orders'))
+    const direct = await attempt(() => writeBatch(customer.db).set(directRef, {
       tableNumber: 99, items: [{ id: created.menu, name: 'ZZ TEST Adobo', price: 250, quantity: 2, image: '' }],
       status: 'pending', paymentStatus: 'pending', total: 500, orderType: 'dine-in', createdAt: Date.now(), updatedAt: Date.now(),
       customerUid: getAuth(customer.app).currentUser.uid, qrToken: TOKEN,
     }).commit())
+    if (direct === 'allowed') created.orders.push(directRef.id) // clean up even if rules let it through
     check('phone CANNOT write an order straight to the database', direct === 'denied', direct)
     const orderId = newId()
     const placedRes = await api(customer, '/api/orders', {
@@ -263,15 +265,19 @@ async function snapshotScreens(db, orderId, tableId, label) {
     if (selfPaid === 'allowed') created.orders.push(selfPaidRef.id)
     check('customer CANNOT create an already-paid order (skips cashier)', selfPaid === 'denied', `${selfPaid}`)
 
-    const noToken = await attempt(() => writeBatch(customer.db).set(doc(collection(customer.db, 'orders')), {
+    const noTokenRef = doc(collection(customer.db, 'orders'))
+    const noToken = await attempt(() => writeBatch(customer.db).set(noTokenRef, {
       tableNumber: 99, items: [], status: 'pending', paymentStatus: 'pending', total: 0, orderType: 'dine-in',
       createdAt: Date.now(), updatedAt: Date.now(), customerUid: getAuth(customer.app).currentUser.uid,
     }).commit())
+    if (noToken === 'allowed') created.orders.push(noTokenRef.id) // clean up even if rules let it through
     check('customer CANNOT order without the table QR code (e.g. from home)', noToken === 'denied', noToken)
-    const badToken = await attempt(() => writeBatch(customer.db).set(doc(collection(customer.db, 'orders')), {
+    const badTokenRef = doc(collection(customer.db, 'orders'))
+    const badToken = await attempt(() => writeBatch(customer.db).set(badTokenRef, {
       tableNumber: 99, items: [], status: 'pending', paymentStatus: 'pending', total: 0, orderType: 'dine-in',
       createdAt: Date.now(), updatedAt: Date.now(), customerUid: getAuth(customer.app).currentUser.uid, qrToken: 'guess',
     }).commit())
+    if (badToken === 'allowed') created.orders.push(badTokenRef.id) // clean up even if rules let it through
     check('customer CANNOT order with a wrong QR code', badToken === 'denied', badToken)
     const peekSecret = await attempt(() => getDoc(doc(customer.db, 'tableSecrets', '99')))
     check('customer CANNOT read table QR secrets', peekSecret === 'denied', peekSecret)

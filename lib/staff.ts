@@ -10,6 +10,7 @@ import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOu
 import { collection, doc, onSnapshot, setDoc, updateDoc, getDoc } from 'firebase/firestore'
 import { db, auth } from './firebase'
 import type { UserRole } from './auth'
+import { guardDemo } from './demo'
 
 export interface StaffMember {
   uid: string
@@ -49,6 +50,7 @@ const FRIENDLY: Record<string, string> = {
  * (creating a user in the main app would switch the session to the new user).
  */
 export async function createStaffAccount(input: { name: string; email: string; password: string; role: UserRole }) {
+  guardDemo('Adding staff')
   const config = getApps()[0].options
   const temp = initializeApp(config, `staff-create-${Date.now()}`)
   try {
@@ -74,11 +76,13 @@ export async function createStaffAccount(input: { name: string; email: string; p
 }
 
 export async function updateStaff(uid: string, patch: Partial<Pick<StaffMember, 'name' | 'role' | 'active'>>) {
+  guardDemo('Changing staff accounts')
   await updateDoc(doc(db, 'staff', uid), { ...patch, updatedAt: Date.now() })
 }
 
 /** Firebase emails the person a secure link to choose a new password */
 export async function sendStaffPasswordReset(email: string) {
+  guardDemo('Password resets')
   try {
     await sendPasswordResetEmail(auth, email)
   } catch (err) {
@@ -88,9 +92,9 @@ export async function sendStaffPasswordReset(email: string) {
 }
 
 /**
- * The signed-in admin may not have a profile yet (original demo admin). Creates
- * one so they show up in the staff list. Rules allow it because the bootstrap
- * admin already counts as admin.
+ * Safety net: makes sure the signed-in admin appears in the staff list.
+ * (Admins always have a profile now — the owner is created with
+ * `npm run create-owner` — so this is normally a no-op.)
  */
 export async function ensureOwnProfile(name: string) {
   const user = auth.currentUser

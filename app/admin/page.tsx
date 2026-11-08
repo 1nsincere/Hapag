@@ -10,6 +10,7 @@ import StaffManager from './components/StaffManager'
 import BrandThemeCard from './components/BrandThemeCard'
 import { StaffGuide } from '@/app/components/StaffGuide'
 import { compressMenuPhoto } from '@/lib/imageCompress'
+import { demoBlocked } from '@/lib/demo'
 import { useQrBaseUrl, cleanBaseUrl, type QrBaseSource } from '@/lib/useQrBaseUrl'
 import {
   listenToOrders,
@@ -348,6 +349,7 @@ export default function AdminPage() {
   // ── handleSaveItem with try/catch and success/error feedback ──
   const handleSaveItem = async () => {
     if (!editingItem) return
+    if (demoBlocked('Editing dishes')) return
     setSaveItemStatus('saving')
     setSaveItemError('')
     try {

@@ -12,6 +12,7 @@ import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/f
 import type { CartItem, MenuItem } from '@/lib/data'
 import { orderTotals, round2, DEFAULT_TAX_RATE, DEFAULT_SERVICE_FEE } from '@/lib/pricing'
 import { startOnlinePayment } from './payments'
+import { demoTag } from '@/lib/demo'
 
 export class OrderError extends Error {
   constructor(message: string, readonly status = 400) { super(message) }
@@ -159,6 +160,7 @@ export async function createCustomerOrder(db: Firestore, uid: string, body: Reco
       priceSource: 'server',
       createdAt: now,
       updatedAt: now,
+      ...demoTag(),
     })
     // Reserve stock now so two tables can't buy the last plate
     for (const [base, qty] of need) stockUpdate(db.collection('menu').doc(base), tx, menu.get(base)!, qty)
