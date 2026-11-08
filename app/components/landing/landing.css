@@ -524,3 +524,105 @@ html.lp-lock, html.lp-lock body { overflow: hidden; }
 .lp-menu { background: var(--leaf); box-shadow: 0 30px 60px -20px rgba(0,0,0,.6); }
 .lp-dish-card { margin-left: -6px; }
 .lp-dish-card:first-child { margin-left: 0; }
+
+/* ═══ How it works: the order's journey (desktop) ═══════════════════════ */
+.lp-how { padding: 0; }
+.lp-journey { position: relative; height: calc(var(--n, 6) * 88vh); --p: 0; --travel: 0px; }
+.lp-journey-pin {
+  position: sticky; top: 0; height: 100vh; overflow: hidden;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 96px 0 26px;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 55%, rgba(242,179,61,.07), transparent 70%),
+    var(--leaf);
+}
+.lp-journey-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 30px; }
+.lp-journey-head .lp-h2 { font-size: clamp(2rem, 3.6vw, 3.2rem); }
+.lp-jclock { display: grid; justify-items: end; gap: 6px; text-align: right; }
+.lp-jclock span { font: 500 11px/1 var(--mono); letter-spacing: .08em; color: var(--on-leaf-3); }
+.lp-jclock b { font: 600 clamp(2.6rem, 4.6vw, 4.2rem)/1 var(--mono); letter-spacing: -.03em; color: var(--mango); font-variant-numeric: tabular-nums; animation: lpTick .45s var(--ease) both; }
+@keyframes lpTick { from { opacity: 0; transform: translateY(-14px); filter: blur(3px); } }
+
+/* The route the screens travel along */
+.lp-jtrack-wrap { position: relative; display: flex; align-items: center; min-height: 0; }
+.lp-jtrack {
+  position: relative; display: flex; align-items: center; gap: 7vw; height: 100%;
+  padding: 0 calc(50vw - min(34vw, 470px));
+  transform: translate3d(calc(var(--p) * var(--travel) * -1), 0, 0); will-change: transform;
+}
+.lp-jtrack::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed rgba(235,239,228,.12); }
+.lp-jpanel {
+  --d: 1;
+  position: relative; flex: none; display: grid; grid-template-columns: auto minmax(220px, 300px); align-items: center; gap: 36px;
+  height: min(58vh, 560px);
+  opacity: calc(1 - var(--d) * .62); transform: scale(calc(1 - var(--d) * .1)); transform-origin: center;
+}
+.lp-jpanel .lp-frame-desktop { height: 100%; width: auto; aspect-ratio: 1440 / 934; display: flex; flex-direction: column; }
+.lp-jpanel .lp-frame-desktop .lp-frame-img { flex: 1; aspect-ratio: auto; }
+.lp-jpanel .lp-frame-phone { height: 100%; }
+.lp-jpanel-time {
+  position: absolute; z-index: -1; left: 50%; top: 50%; transform: translate(-50%, -54%);
+  font: 900 clamp(9rem, 22vw, 20rem)/1 var(--sans); font-stretch: 62%; letter-spacing: -.04em; white-space: nowrap;
+  color: transparent; -webkit-text-stroke: 1.5px rgba(242,179,61,.16); pointer-events: none;
+}
+.lp-jpanel-copy { display: grid; gap: 0; }
+.lp-jpanel-station { font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mango); }
+.lp-jpanel-copy h3 { margin: 12px 0 0; font: 760 clamp(1.7rem, 2.4vw, 2.3rem)/1.02 var(--sans); font-stretch: 85%; letter-spacing: -.02em; }
+.lp-jpanel-copy p { margin: 12px 0 0; color: var(--on-leaf-2); font-size: 1.02rem; }
+
+/* Bottom: route progress + the ticket riding along */
+.lp-journey-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; }
+.lp-route {
+  position: relative; flex: 1; max-width: 720px; list-style: none; margin: 0; padding: 22px 0 0;
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  --fill: calc(var(--p) * 100%);
+}
+.lp-route::before, .lp-route::after { content: ''; position: absolute; top: 4px; left: 6px; height: 2px; border-radius: 2px; }
+.lp-route::before { right: 6px; background: var(--leaf-line); }
+.lp-route::after { width: calc((100% - 12px) * var(--p)); background: var(--mango); }
+.lp-route li { position: relative; font: 500 11.5px/1 var(--mono); letter-spacing: .05em; color: var(--on-leaf-3); transition: color .3s; }
+.lp-route li::before { content: ''; position: absolute; left: 0; top: -22px; width: 10px; height: 10px; border-radius: 50%; background: var(--leaf); border: 2px solid var(--on-leaf-3); transition: background-color .3s, border-color .3s; }
+.lp-route li.is-done { color: var(--on-leaf); }
+.lp-route li.is-done::before { background: var(--mango); border-color: var(--mango); }
+.lp-route li[aria-current='step'] { color: var(--mango); }
+.lp-jticket {
+  position: relative; flex: none; width: 220px; padding: 12px 14px 22px; color: var(--ink); background: var(--paper);
+  font: 400 12px/1.5 var(--mono); transform: rotate(-2deg); box-shadow: 0 22px 40px -18px rgba(0,0,0,.6);
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+          mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+}
+.lp-jstamp {
+  position: absolute; right: 10px; top: 34px; padding: 4px 9px; border: 2.5px solid var(--achuete); border-radius: 3px;
+  color: var(--achuete); font: 600 13px/1 var(--mono); letter-spacing: .12em; background: rgba(242,241,234,.75);
+  transform: rotate(-8deg); animation: lpStampIn .3s cubic-bezier(.2, .9, .3, 1.35) both;
+}
+.lp-jstamp.is-final { color: #1F6B40; border-color: #1F6B40; }
+@keyframes lpStampIn { from { opacity: 0; transform: rotate(-8deg) scale(2); } }
+
+/* Phones + reduced motion use the vertical list instead */
+.lp-how-list { display: none; padding: clamp(80px, 12vw, 130px) 0 40px; }
+.lp-how-list .lp-log-item { min-height: 0; padding: 0 0 64px; color: var(--on-leaf); }
+.lp-how-list .lp-log-item::before { top: 6px; background: var(--mango); border-color: var(--mango); }
+.lp-how-list .lp-log-item time { opacity: 1; }
+.lp-how-list .lp-log-item p { color: var(--on-leaf-2); }
+.lp-how-list .lp-log-shot { display: block; margin-top: 22px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--leaf-line); max-width: 760px; }
+.lp-how-list .lp-log-shot img { display: block; width: 100%; height: auto; }
+.lp-how-list .lp-log-shot-phone { max-width: 240px; border-radius: 26px; box-shadow: 0 0 0 7px #0A0D0A; }
+@media (max-width: 900px), (max-height: 600px) {
+  .lp-journey { display: none; }
+  .lp-how-list { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-journey { display: none; }
+  .lp-how-list { display: block; }
+}
+
+/* Journey layout fixes: one fixed-width column; JS positions the track */
+.lp-journey-pin { grid-template-columns: minmax(0, 1fr); }
+.lp-jtrack-wrap { min-width: 0; }
+.lp-jtrack { padding: 0; transform: none; width: max-content; }
+.lp-jpanel-time { -webkit-text-stroke-color: rgba(242,179,61,.11); left: 32%; }
+
+/* Journey: a little more air between heading and screens */
+.lp-jpanel { height: min(50vh, 500px); }
+.lp-journey-pin { padding-top: 92px; row-gap: 18px; }
+.lp-journey-head .lp-h2 { font-size: clamp(1.9rem, 3.2vw, 2.9rem); }

@@ -399,52 +399,145 @@ function Rush() {
   )
 }
 
-function Timeline() {
-  const [active, setActive] = useState(0)
-  const refs = useRef<(HTMLLIElement | null)[]>([])
-  useEffect(() => {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting) setActive(Number((e.target as HTMLElement).dataset.i)) })
-    }, { rootMargin: '-45% 0px -45% 0px' })
-    refs.current.forEach(el => el && io.observe(el))
-    return () => io.disconnect()
-  }, [])
+const STATIONS = ['Guest', 'Cashier', 'Payment', 'Kitchen', 'Floor', 'Owner']
+const STAMPS = ['NEW', 'ACCEPTED', 'PAID · QR PH', 'COOKING', 'READY', 'SERVED']
 
+function Timeline() {
   return (
     <section id="how" className="lp-how">
-      <div className="lp-wrap">
+      <Journey />
+      {/* Phones and reduced motion: the same story as a vertical list */}
+      <div className="lp-wrap lp-how-list">
         <header className="lp-head">
           <p className="lp-label">How it works</p>
           <h2 className="lp-h2">Follow one order through the restaurant</h2>
         </header>
-        <div className="lp-how-grid">
-          <div className="lp-how-stage" aria-hidden="true">
-            <div className="lp-how-sticky">
-              {TIMELINE.map((s, i) => (
-                <div key={s.time + s.title} className={`lp-shot${i === active ? ' is-active' : ''}`}>
-                  <div className={`lp-frame lp-frame-${s.device}`}>
-                    {s.device === 'desktop' && <div className="lp-browser-bar"><i /><i /><i /><span>{s.shot.startsWith('admin') ? '/admin' : s.shot.startsWith('kitchen') ? '/kitchen' : '/cashier'}</span></div>}
-                    <div className="lp-frame-img"><Image src={`/landing/${s.shot}.jpg`} alt="" fill sizes="(max-width: 900px) 90vw, 55vw" /></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <ol className="lp-log">
-            {TIMELINE.map((s, i) => (
-              <li key={s.time + s.title} ref={el => { refs.current[i] = el }} data-i={i} className={`lp-log-item${i === active ? ' is-active' : ''}`}>
-                <time>{s.time}</time>
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
-                <div className={`lp-log-shot lp-log-shot-${s.device}`}>
-                  <Image src={`/landing/${s.shot}.jpg`} alt={`${s.title}: screenshot`} width={s.device === 'phone' ? 390 : 1440} height={s.device === 'phone' ? 844 : 900} sizes="90vw" />
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
+        <ol className="lp-log">
+          {TIMELINE.map(s => (
+            <li key={s.time + s.title} className="lp-log-item">
+              <time>{s.time}</time>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+              <div className={`lp-log-shot lp-log-shot-${s.device}`}>
+                <Image src={`/landing/${s.shot}.jpg`} alt={`${s.title}: screenshot`} width={s.device === 'phone' ? 390 : 1440} height={s.device === 'phone' ? 844 : 900} sizes="90vw" />
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
+  )
+}
+
+/**
+ * Desktop: the section pins while you scroll and the screens travel sideways
+ * like stations on a route. One ticket rides along and gets re-stamped.
+ * Scroll position is written to CSS variables (no re-render per frame).
+ */
+function Journey() {
+  const root = useRef<HTMLDivElement>(null)
+  const track = useRef<HTMLDivElement>(null)
+  const panels = useRef<(HTMLElement | null)[]>([])
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    let raf = 0
+    let last = -1
+    let centers: number[] = []
+    // Layout positions (offsetLeft ignores transforms) of each station's centre
+    const measure = () => {
+      centers = panels.current.map(pn => (pn ? pn.offsetLeft + pn.offsetWidth / 2 : 0))
+    }
+    const update = () => {
+      raf = 0
+      const r = el.getBoundingClientRect()
+      const max = r.height - window.innerHeight
+      if (max <= 0) return
+      const prog = Math.min(1, Math.max(0, -r.top / max))
+      el.style.setProperty('--p', prog.toFixed(4))
+      const cx = window.innerWidth / 2
+      // Glide from one station's centre to the next, so each one lands dead centre
+      if (track.current && centers.length > 1) {
+        const seg = prog * (centers.length - 1)
+        const i = Math.min(centers.length - 2, Math.floor(seg))
+        const c = centers[i] + (centers[i + 1] - centers[i]) * (seg - i)
+        track.current.style.transform = `translate3d(${cx - c}px, 0, 0)`
+      }
+      panels.current.forEach(pn => {
+        if (!pn) return
+        const b = pn.getBoundingClientRect()
+        const raw = Math.abs(b.left + b.width / 2 - cx) / (window.innerWidth * 0.6)
+        const d = raw < 0.06 ? 0 : Math.min(1, raw)   // the station in focus is fully crisp
+        pn.style.setProperty('--d', d.toFixed(3))
+      })
+      const st = Math.min(TIMELINE.length - 1, Math.round(prog * (TIMELINE.length - 1)))
+      if (st !== last) { last = st; setStep(st) }
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+    const onResize = () => { measure(); onScroll() }
+    measure(); update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+    const ro = new ResizeObserver(onResize)
+    if (track.current) ro.observe(track.current)
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onResize); ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [])
+
+  // Soft click at each new station (only if sound is on)
+  const first = useRef(true)
+  useEffect(() => { if (first.current) { first.current = false; return } tick() }, [step])
+
+  const now = TIMELINE[step]
+  return (
+    <div ref={root} className="lp-journey" style={{ '--n': TIMELINE.length } as CSSProperties}>
+      <div className="lp-journey-pin">
+        <div className="lp-wrap lp-journey-head">
+          <div>
+            <p className="lp-label">How it works</p>
+            <h2 className="lp-h2">Follow one order through the restaurant</h2>
+          </div>
+          <div className="lp-jclock" aria-hidden="true">
+            <span>ORDER #A031 · TABLE 4</span>
+            <b key={step}>{now.time}</b>
+          </div>
+        </div>
+
+        <div className="lp-jtrack-wrap">
+          <div ref={track} className="lp-jtrack">
+            {TIMELINE.map((s, i) => (
+              <article key={s.time + s.title} ref={el => { panels.current[i] = el }} className={`lp-jpanel lp-jpanel-${s.device}${i === step ? ' is-active' : ''}`}>
+                <span className="lp-jpanel-time" aria-hidden="true">{s.time === 'Anytime' ? 'Any' : s.time.replace(' PM', '')}</span>
+                <div className={`lp-frame lp-frame-${s.device}`}>
+                  {s.device === 'desktop' && <div className="lp-browser-bar"><i /><i /><i /><span>{s.shot.startsWith('admin') ? '/admin' : s.shot.startsWith('kitchen') ? '/kitchen' : '/cashier'}</span></div>}
+                  <div className="lp-frame-img"><Image src={`/landing/${s.shot}.jpg`} alt={`${s.title}: screenshot`} fill sizes="60vw" /></div>
+                </div>
+                <div className="lp-jpanel-copy">
+                  <span className="lp-jpanel-station">{STATIONS[i]}</span>
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="lp-wrap lp-journey-foot">
+          <ol className="lp-route" aria-label="Where the order is">
+            {STATIONS.map((st, i) => (
+              <li key={st} className={i <= step ? 'is-done' : ''} aria-current={i === step ? 'step' : undefined}>{st}</li>
+            ))}
+          </ol>
+          <div className="lp-jticket" aria-hidden="true">
+            <div className="lp-ticket-row"><b>TABLE 04</b><span>#A031</span></div>
+            <div className="lp-ticket-line">1× Kare-Kare <em>good for 3–4</em></div>
+            <div className="lp-ticket-line">3× Garlic rice</div>
+            <span key={step} className={`lp-jstamp${step === STAMPS.length - 1 ? ' is-final' : ''}`}>{STAMPS[step]}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
