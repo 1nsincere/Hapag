@@ -14,6 +14,66 @@ floor plans, staff accounts, brand colours, server-side prices and the practice 
 - **Hapag Order:** QR ordering, kitchen screen, tables and alerts, next to the restaurant's existing POS. That POS keeps the till and official receipts.
 - **Hapag Complete:** Hapag also replaces the till (needs Phase 5).
 
+**Progress (2026-11-08)**
+
+| What | % done |
+|---|---|
+| Core product (built and tested) | ~80% |
+| Ready for a 1-month pilot (Hapag Order, counter payments) | ~85% |
+| Ready to sell at full price | ~65–70% |
+| Hapag Complete (replaces their POS) | ~45% |
+
+---
+
+## Pilot-ready plan (if a restaurant says yes)
+
+**Promise: the pilot starts 3 weeks after they say yes.** That's about 10–14 working days of work plus buffer.
+The clock starts when the restaurant sends the day-1 items below.
+
+**Pilot scope:** Hapag Order. Their POS keeps the till and official receipts (no BIR issues). Guests pay at the counter.
+No payment account needed. Online payments and Hapag Complete come after the pilot.
+
+### Must-haves (checklist items, with estimates)
+- [ ] 1.1 + 1.3: Remove the demo login fallback; owner account setup; require a real secret (1 day)
+- [ ] 1.2: Staff accounts made by the server; turn off public sign-up (½ day)
+- [ ] 1.4 + 1.5: "Ordering paused" switch, plus an outage test (1 day)
+- [ ] 1.6: Counter-payment-only mode (½ day)
+- [ ] 1.8 + 1.9: Backups + error alerts (½ day)
+- [ ] 2.1: Kitchen ticket + receipt printing (1–2 days)
+- [ ] 2.2: "Rung up in POS ✓" + end-of-day check (½ day)
+- [ ] 2.5 + 2.8: Device check page; receipt header with their details (½ day)
+- [ ] 3.2–3.4: Clean start, privacy notice, staff guide (1 day)
+- [ ] 3.1: Their setup: Vercel site, menu, photos, tables, floor plan, QR standees (2–3 days)
+- [ ] Testing + buffer: real phones, their device, fixes (2–3 days)
+- [ ] *Optional:* 2.4 dish add-ons (+1 day) · 2.3 spreadsheet menu import (+1 day; for a small menu, typing it in is faster)
+
+**Possible delays (and the backup plan):**
+- Unusual device or printer → use a cheap tablet or the kitchen screen instead of printed tickets; the start date holds
+- Late menu or photos → the start date moves by the same amount
+- Print shop time for QR standees → 1–3 days
+- Owner availability for testing and the on-site visit
+
+### Ask the restaurant on day 1
+- [ ] Menu: dish names, prices, categories, options (a photo of the printed menu is fine)
+- [ ] Dish photos (or permission to take them)
+- [ ] Table layout: number of tables and floors (a rough sketch is fine)
+- [ ] Photos of their POS device and printer, including the model sticker
+- [ ] Logo and brand colour
+- [ ] Staff list: names and roles (cashier, kitchen)
+- [ ] Internet setup, and whether they have a backup (pocket WiFi / LTE router)
+
+### Schedule to show the restaurant
+| Week | What happens |
+|---|---|
+| Week 1 | They send menu/photos; we finish the safety and printing features |
+| Week 2 | Their branded Hapag set up (menu, tables, QR codes); device test on-site |
+| Week 3 | Final testing; QR standees printed; 1–2 hour staff training |
+| Pilot day 1 | Go live, with the owner on-site for the first service |
+| Pilot month | Weekly check-in; fixes within 24–48 hours |
+
+**Pilot terms to offer:** free or discounted for the month; their POS stays the till; guests pay at the counter;
+online payments and Hapag Complete come after the pilot.
+
 ---
 
 ## Portfolio demo (before sharing a public link)
