@@ -15,6 +15,8 @@ See **[ROADMAP.md](ROADMAP.md)** for how the system works, what's done and what'
 ```bash
 npm install
 cp .env.example .env.local   # then fill in Firebase config + NEXTAUTH_SECRET
+# Firebase console → Project settings → Service accounts → Generate new private key
+# save it as service-account.json in this folder (git-ignored; never commit it)
 npm run dev                  # http://localhost:3000 (also reachable on your LAN)
 ```
 

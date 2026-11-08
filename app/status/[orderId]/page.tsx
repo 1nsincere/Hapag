@@ -66,6 +66,8 @@ export default function StatusPage() {
   const step = STEPS[current]
   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0)
   const isPaid = order.paymentStatus === 'paid'
+  // Chose Cash at checkout: confirmed, waiting for the cashier to collect
+  const atCounter = order.status === 'accepted' && !isPaid && order.payAtCounter === true
 
   return (
     <div className="hp">
@@ -85,9 +87,17 @@ export default function StatusPage() {
         <section className="hp-status-hero" aria-live="polite">
           <div className="hp-orb hp-fade-up"><span className="material-symbols-outlined">{step.icon}</span></div>
           <p className="hp-eyebrow hp-fade-up" style={delay(80)}>Step {current + 1} of {STEPS.length}</p>
-          <h1 className="hp-display hp-display-sm hp-fade-up" style={delay(140)}>{step.headline}</h1>
-          <p className="hp-muted hp-fade-up" style={{ ...delay(200), maxWidth: 360 }}>{step.desc}</p>
-          {order.status === 'accepted' && (
+          <h1 className="hp-display hp-display-sm hp-fade-up" style={delay(140)}>{atCounter ? 'Pay at the counter' : step.headline}</h1>
+          <p className="hp-muted hp-fade-up" style={{ ...delay(200), maxWidth: 360 }}>
+            {atCounter
+              ? <>Please pay <strong className="hp-num">{peso(order.grandTotal ?? order.total)}</strong> at the counter (table {pad2(order.tableNumber)}). Your order goes to the kitchen as soon as it&apos;s paid.</>
+              : step.desc}
+          </p>
+          {atCounter ? (
+            <Link href={`/checkout/${order.id}`} className="hp-btn hp-btn-ghost hp-fade-up" style={delay(260)}>
+              Pay on my phone instead
+            </Link>
+          ) : order.status === 'accepted' && (
             <Link href={`/checkout/${order.id}`} className="hp-btn hp-btn-primary hp-btn-lg hp-fade-up" style={delay(260)}>
               Pay now
               <span className="material-symbols-outlined">arrow_forward</span>
@@ -107,7 +117,7 @@ export default function StatusPage() {
                   </span>
                   <div>
                     <p className="hp-step-title">{s.title}</p>
-                    {idx === current && <p className="hp-step-desc">{s.desc}</p>}
+                    {idx === current && <p className="hp-step-desc">{atCounter ? 'Confirmed. Pay at the counter and it goes straight to the kitchen.' : s.desc}</p>}
                   </div>
                 </li>
               )

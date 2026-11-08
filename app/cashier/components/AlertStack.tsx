@@ -8,6 +8,7 @@
  * until they do it.
  *   • Staff call     → "On my way"   (resolves the request)
  *   • New order      → "Accept"      (or accepting it anywhere else)
+ *   • Paying cash    → "Collect"     (goes away once the payment is taken)
  *   • Ready to serve → "Mark served" (or "Got it" if someone else serves)
  * Chimes on arrival and every minute while orders/calls are still waiting.
  */
@@ -23,6 +24,7 @@ const MAX_VISIBLE = 3
 type Alert =
   | { id: string; kind: 'call'; tableNumber: number; requests: ServiceRequest[]; at: number }
   | { id: string; kind: 'new'; order: Order; at: number }
+  | { id: string; kind: 'cash'; order: Order; at: number }
   | { id: string; kind: 'ready'; order: Order; at: number }
 
 function readAcks(): Set<string> {
@@ -65,10 +67,12 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         at: Math.min(...group.map(r => r.createdAt)),
       })),
       ...orders.filter(o => o.status === 'pending').map(o => ({ id: `new:${o.id}`, kind: 'new' as const, order: o, at: o.createdAt })),
+      ...orders.filter(o => o.status === 'accepted' && o.paymentStatus !== 'paid' && o.payAtCounter)
+        .map(o => ({ id: `cash:${o.id}`, kind: 'cash' as const, order: o, at: o.updatedAt ?? o.createdAt })),
       ...orders.filter(o => o.status === 'ready' && !acks.has(`ready:${o.id}`))
         .map(o => ({ id: `ready:${o.id}`, kind: 'ready' as const, order: o, at: o.updatedAt ?? o.createdAt })),
     ]
-    const rank = { call: 0, new: 1, ready: 2 }
+    const rank = { call: 0, new: 1, cash: 2, ready: 3 }
     return list.sort((a, b) => rank[a.kind] - rank[b.kind] || a.at - b.at)
   }, [orders, requests, acks])
 
@@ -86,7 +90,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
   }, [alerts])
 
   // Gentle reminder every minute while customers are waiting on the cashier
-  const waiting = alerts.some(a => a.kind === 'call' || a.kind === 'new')
+  const waiting = alerts.some(a => a.kind !== 'ready')
   useEffect(() => {
     if (!waiting) return
     const t = setInterval(playChime, 60_000)
@@ -116,7 +120,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
   if (alerts.length === 0) return null
 
   if (minimised) {
-    const counts = { call: 0, new: 0, ready: 0 }
+    const counts = { call: 0, new: 0, cash: 0, ready: 0 }
     alerts.forEach(a => { counts[a.kind]++ })
     return (
       <button
@@ -128,6 +132,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
         {alerts.length} waiting
         {counts.call > 0 && <span className="w-2.5 h-2.5 rounded-full bg-red-500" title="Staff calls" />}
         {counts.new > 0 && <span className="w-2.5 h-2.5 rounded-full bg-amber-400" title="New orders" />}
+        {counts.cash > 0 && <span className="w-2.5 h-2.5 rounded-full bg-blue-500" title="Paying cash" />}
         {counts.ready > 0 && <span className="w-2.5 h-2.5 rounded-full bg-green-500" title="Ready to serve" />}
       </button>
     )
@@ -190,6 +195,16 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
             </Card>
           )
         }
+        if (a.kind === 'cash') {
+          const o = a.order
+          return (
+            <Card key={a.id} tone="blue" icon="payments" title={<><TableBadge tableNumber={o.tableNumber} size="sm" /> is paying cash at the counter</>} meta={`₱${(o.grandTotal ?? o.total).toFixed(2)} · ${ago(a.at, now)}`}>
+              <button onClick={onReview} className="flex-1 h-10 rounded-lg bg-blue-600 text-white font-bold text-sm hover:bg-blue-700">
+                Collect payment
+              </button>
+            </Card>
+          )
+        }
         const o = a.order
         return (
           <Card key={a.id} tone="green" icon="room_service" title={<>Ready to serve <TableBadge tableNumber={o.tableNumber} size="sm" /></>} meta={ago(a.at, now)}>
@@ -214,6 +229,7 @@ export function AlertStack({ orders, requests, now, hasPriceIssue, onAccept, onM
 const TONES = {
   red:   { box: 'bg-red-50 border-red-300',     icon: 'bg-red-600 text-white',   title: 'text-red-900',   meta: 'text-red-800/70' },
   amber: { box: 'bg-amber-50 border-amber-300', icon: 'bg-amber-500 text-white', title: 'text-amber-950', meta: 'text-amber-900/70' },
+  blue:  { box: 'bg-blue-50 border-blue-300',   icon: 'bg-blue-600 text-white',  title: 'text-blue-950',  meta: 'text-blue-900/70' },
   green: { box: 'bg-green-50 border-green-300', icon: 'bg-green-600 text-white', title: 'text-green-950', meta: 'text-green-900/70' },
 }
 

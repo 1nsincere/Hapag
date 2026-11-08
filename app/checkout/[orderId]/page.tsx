@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  listenToOrder, listenToSettings, listenToMenu, processPaymentAndActivateOrder,
+  listenToOrder, listenToSettings, listenToMenu,
   Order, AppSettings, DEFAULT_SETTINGS, MenuItem, CartItem,
 } from '@/lib/data'
+import { payCustomerOrder } from '@/lib/customerApi'
+import { orderTotals } from '@/lib/pricing'
 import {
   peso, pad2, shortId, DishImage, Sheet, SheetHeader, Stepper, TopBar, LoadingScreen, MessageScreen,
 } from '@/app/components/customer/ui'
@@ -118,12 +120,10 @@ export default function CheckoutPage() {
     )
   }
 
+  // Same formula the server uses — it recalculates from the menu when you pay
   const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const taxRate = parseFloat(settings.taxRate) || 0
-  const tax = subtotal * (taxRate / 100)
-  const serviceFee = parseFloat(settings.serviceFee) || 0
-  const tipAmount = (subtotal * tipPercent) / 100
-  const grandTotal = subtotal + tax + serviceFee + tipAmount
+  const cashTip = paymentMethod === 'cash' ? 0 : tipPercent  // cash tips are given at the counter
+  const { tax, serviceFee, tip: tipAmount, total: grandTotal } = orderTotals(subtotal, settings, { tipPercent: cashTip })
   const itemCount = orderItems.reduce((s, i) => s + i.quantity, 0)
 
   const isPaid = order.paymentStatus === 'paid'
@@ -181,18 +181,22 @@ export default function CheckoutPage() {
     }
     setIsProcessing(true)
     try {
-      // Simulated payment — replace with a real gateway in production
-      await new Promise(r => setTimeout(r, 1500))
+      // The server re-prices everything from the menu + Settings.
+      // QR Ph / card are still simulated until a payment gateway is connected.
+      const result = await payCustomerOrder(orderId, { paymentMethod, tipPercent: cashTip, items: orderItems })
+      try { localStorage.removeItem(`cart_${order.tableNumber}`) } catch { /* non-critical */ }
 
-      // Mark paid + persist final items + send to the kitchen (table stays occupied)
-      await processPaymentAndActivateOrder(orderId, paymentMethod, tipAmount, grandTotal, { items: orderItems, total: subtotal })
-
+      if (result.status === 'pay-at-counter') {
+        // Not paid yet — the status page tells them to pay at the counter
+        router.push(`/status/${orderId}`)
+        return
+      }
       try { sessionStorage.removeItem(`tableId_${orderId}`) } catch { /* non-critical */ }
       router.push(`/confirmation/${orderId}`)
-    } catch {
+    } catch (error) {
       setIsProcessing(false)
       setShowSummaryModal(false)
-      setPayError('Payment didn’t go through. Please try again.')
+      setPayError(error instanceof Error && error.message ? error.message : 'Payment didn’t go through. Please try again.')
     }
   }
 
@@ -309,6 +313,9 @@ export default function CheckoutPage() {
               </button>
             ))}
           </div>
+          {paymentMethod === 'cash' && tipPercent > 0 && (
+            <p className="hp-muted" style={{ marginTop: 10, fontSize: 13 }}>Paying cash? You can leave a tip at the counter.</p>
+          )}
         </section>
 
         {/* Payment */}
@@ -374,7 +381,7 @@ export default function CheckoutPage() {
                 <span className="material-symbols-outlined">hourglass_top</span>Awaiting confirmation
               </span>
             ) : (
-              <><span>Pay · {methodLabel(paymentMethod)}</span><span className="hp-num">{peso(grandTotal)}</span></>
+              <><span>{paymentMethod === 'cash' ? 'Pay at the counter' : `Pay · ${methodLabel(paymentMethod)}`}</span><span className="hp-num">{peso(grandTotal)}</span></>
             )}
           </button>
         </div>
@@ -431,7 +438,7 @@ export default function CheckoutPage() {
                 <span className="material-symbols-outlined hp-spin">progress_activity</span>Processing payment…
               </span>
             ) : (
-              <><span>Confirm &amp; pay</span><span className="hp-num">{peso(grandTotal)}</span></>
+              <><span>{paymentMethod === 'cash' ? 'Confirm · pay at counter' : 'Confirm & pay'}</span><span className="hp-num">{peso(grandTotal)}</span></>
             )}
           </button>
           <p className="hp-fineprint">By confirming, you agree to the charges above.</p>

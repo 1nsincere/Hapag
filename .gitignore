@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# server secrets (never commit)
+service-account*.json
+*-firebase-adminsdk-*.json

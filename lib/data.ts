@@ -17,6 +17,7 @@ import {
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { orderSafeImage } from './imageCompress';
+import { DEFAULT_TAX_RATE, DEFAULT_SERVICE_FEE } from './pricing';
 
 /** Strip embedded (uploaded) photos from order items — they live on the menu item */
 const slimItems = (items: CartItem[]) => items.map(i => ({ ...i, image: orderSafeImage(i.image) }))
@@ -71,8 +72,8 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   restaurantName: 'My Restaurant',
   stationName: 'Main Line',
-  taxRate: '8',
-  serviceFee: '2.50',
+  taxRate: DEFAULT_TAX_RATE,
+  serviceFee: DEFAULT_SERVICE_FEE,
   baseUrl: '',
   imgbbApiKey: '',
   cloudinaryCloudName: '',
@@ -485,6 +486,8 @@ export interface Order {
   // ── Security ─────────────────────────────────────────────────────────────
   customerUid?: string   // device (anonymous Firebase user) that placed it — only it + staff can read
   qrToken?: string       // secret from the table's QR code — proves the order came from the table
+  payAtCounter?: boolean // customer chose Cash at checkout — the cashier collects it
+  priceSource?: 'server' // prices/totals were set by the server from the menu, not the phone
 }
 
 /**

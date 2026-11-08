@@ -654,8 +654,16 @@ function CashierContent() {
                                   <span className="text-sm font-semibold text-zinc-700">{timeString}</span>
                                 </div>
                                 <p className="text-xs font-mono text-zinc-600">Order #{order.id.slice(0, 8)}</p>
+                                {order.payAtCounter && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                                    <span className="material-symbols-outlined text-[14px]">payments</span>Paying cash at the counter
+                                  </span>
+                                )}
                               </div>
-                              <span className="text-sm font-mono text-blue-800 font-bold">₱{order.total.toFixed(2)}</span>
+                              <span className="text-right">
+                                <span className="block text-sm font-mono text-blue-800 font-bold">₱{orderTotals(order.total, settings).total.toFixed(2)}</span>
+                                <span className="block text-[10px] text-zinc-500">to collect · incl. tax &amp; fee</span>
+                              </span>
                             </div>
                             <div className="space-y-2 mb-4 bg-white/60 p-3 rounded-lg">
                               {(() => {

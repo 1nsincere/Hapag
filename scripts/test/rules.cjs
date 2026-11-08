@@ -36,6 +36,20 @@ async function attempt(fn) {
   try { await fn(); return 'allowed' } catch (e) { return e.code === 'permission-denied' ? 'denied' : `error:${e.code || e.message}` }
 }
 
+// Customer orders go through the app's server (needs `npm run dev` running)
+const BASE = process.env.HAPAG_BASE || 'http://localhost:3000'
+const newId = () => Array.from({ length: 20 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]).join('')
+async function api(who, path, body) {
+  const token = await getAuth(who.app).currentUser.getIdToken()
+  for (let i = 0; ; i++) {
+    try {
+      const res = await fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) })
+      return { status: res.status, data: await res.json().catch(() => ({})) }
+    } catch (e) { if (i >= 2) return { status: 0, data: { error: 'server not reachable at ' + BASE } }; await new Promise(r => setTimeout(r, 1500)) }
+  }
+}
+const round2 = n => Math.round(n * 100) / 100
+
 async function role(name, login) {
   const app = initializeApp(config, name)
   const auth = getAuth(app)
@@ -102,21 +116,27 @@ async function snapshotScreens(db, orderId, tableId, label) {
     }))
     check('anonymous customer can mark table occupied', occ === 'allowed', occ)
 
-    // ── 2. customer sends order (addOrder) ──
-    step('2. CUSTOMER sends an order: 2× ZZ TEST Adobo (₱250)')
-    const orderRef = doc(collection(customer.db, 'orders'))
-    const b = writeBatch(customer.db)
-    b.set(orderRef, {
-      tableNumber: 99, items: [{ id: created.menu, baseId: created.menu, name: 'ZZ TEST Adobo', price: 250, quantity: 2, image: '' }],
-      status: 'pending', paymentStatus: 'pending', specialInstructions: 'no onions', total: 500,
-      orderType: 'dine-in', createdAt: Date.now(), updatedAt: Date.now(),
+    // ── 2. customer sends order (through the server) ──
+    step('2. CUSTOMER sends an order: 2× ZZ TEST Adobo — phone claims ₱1 each, server must charge ₱250')
+    const direct = await attempt(() => writeBatch(customer.db).set(doc(collection(customer.db, 'orders')), {
+      tableNumber: 99, items: [{ id: created.menu, name: 'ZZ TEST Adobo', price: 250, quantity: 2, image: '' }],
+      status: 'pending', paymentStatus: 'pending', total: 500, orderType: 'dine-in', createdAt: Date.now(), updatedAt: Date.now(),
       customerUid: getAuth(customer.app).currentUser.uid, qrToken: TOKEN,
+    }).commit())
+    check('phone CANNOT write an order straight to the database', direct === 'denied', direct)
+    const orderId = newId()
+    const placedRes = await api(customer, '/api/orders', {
+      orderId, tableNumber: 99, qrToken: TOKEN, specialInstructions: 'no onions',
+      items: [{ id: created.menu, baseId: created.menu, name: 'ZZ TEST Adobo', price: 1, quantity: 2 }],
     })
-    b.update(doc(customer.db, 'menu', created.menu), { stock: 3 })
-    const placed = await attempt(() => b.commit())
-    check('order + stock decrement committed', placed === 'allowed', placed)
-    created.orders.push(orderRef.id)
+    check('order accepted by the server', placedRes.status === 201, `HTTP ${placedRes.status} ${placedRes.data.error || ''}`)
+    created.orders.push(orderId)
+    const orderRef = doc(customer.db, 'orders', orderId)
+    const placedDoc = (await getDoc(doc(admin.db, 'orders', orderId))).data() || {}
+    check('server charged the menu price (₱250, not ₱1)', placedDoc.items?.[0]?.price === 250 && placedDoc.total === 500, `price=${placedDoc.items?.[0]?.price} total=${placedDoc.total}`)
+    const again = await api(customer, '/api/orders', { orderId, tableNumber: 99, qrToken: TOKEN, items: [{ id: created.menu, quantity: 2 }] })
     const stockAfter = (await getDoc(doc(admin.db, 'menu', created.menu))).data().stock
+    check('same order sent twice (Wi-Fi retry) is not duplicated', again.status === 201 && stockAfter === 3, `HTTP ${again.status}`)
     check('stock went 5 → 3', stockAfter === 3, `stock=${stockAfter}`)
     let s = await snapshotScreens(cashier.db, orderRef.id, created.table)
     check('cashier sees it under "Awaiting Acceptance"', s.where_.includes('cashierAwaitingAcceptance'))
@@ -126,10 +146,12 @@ async function snapshotScreens(db, orderId, tableId, label) {
 
     // ── 3. early payment attempt ──
     step('3. CUSTOMER tries to pay BEFORE the cashier accepts')
+    const earlyRes = await api(customer, `/api/orders/${orderId}/pay`, { paymentMethod: 'qrph', tipPercent: 0, items: s.o.items })
+    check('server refuses payment before the cashier accepts', earlyRes.status === 409, `HTTP ${earlyRes.status}`)
     const early = await attempt(() => updateDoc(doc(customer.db, 'orders', orderRef.id), {
       paymentStatus: 'paid', paymentMethod: 'qrph', tipAmount: 0, grandTotal: 560, paidAt: Date.now(), status: 'preparing', updatedAt: Date.now(),
     }))
-    check('blocked by rules', early === 'denied', early)
+    check('phone CANNOT mark it paid directly', early === 'denied', early)
 
     // ── 4. cashier accepts ──
     step('4. CASHIER taps "Accept Order"')
@@ -140,12 +162,25 @@ async function snapshotScreens(db, orderId, tableId, label) {
     check('customer status page now shows Pay now', s.o.status === 'accepted')
 
     // ── 5. customer pays at checkout (processPaymentAndActivateOrder) ──
-    step('5. CUSTOMER checks out: QR Ph, no tip, tax 0 / fee 0 → ₱500')
-    const paid = await attempt(() => updateDoc(doc(customer.db, 'orders', orderRef.id), {
-      items: s.o.items, total: 500, paymentStatus: 'paid', paymentMethod: 'qrph', tipAmount: 0, grandTotal: 500,
+    const settingsDoc = (await getDoc(doc(admin.db, 'settings', 'general'))).data() || {}
+    const taxRate = parseFloat(settingsDoc.taxRate ?? '8') || 0, fee = parseFloat(settingsDoc.serviceFee ?? '2.50') || 0
+    const expected = round2(500 + round2(500 * taxRate / 100) + fee + 50)
+    step(`5. CUSTOMER checks out: QR Ph, 10% tip → server works out ₱${expected.toFixed(2)}`)
+    const direct5 = await attempt(() => updateDoc(doc(customer.db, 'orders', orderRef.id), {
+      items: s.o.items, total: 500, paymentStatus: 'paid', paymentMethod: 'qrph', tipAmount: 0, grandTotal: 1,
       paidAt: Date.now(), status: 'preparing', updatedAt: Date.now(),
     }))
-    check('customer payment allowed', paid === 'allowed', paid)
+    check('phone CANNOT pay by writing its own total', direct5 === 'denied', direct5)
+    const stranger0 = await role('stranger0', 'anon')
+    const steal = await api(stranger0, `/api/orders/${orderId}/pay`, { paymentMethod: 'qrph', tipPercent: 0, items: s.o.items })
+    check('another phone CANNOT pay/change this order', steal.status === 404, `HTTP ${steal.status}`)
+    await deleteApp(stranger0.app)
+    const payRes = await api(customer, `/api/orders/${orderId}/pay`, {
+      paymentMethod: 'qrph', tipPercent: 10, items: s.o.items.map(i => ({ ...i, price: 1 })),
+    })
+    const paidDoc = (await getDoc(doc(admin.db, 'orders', orderId))).data() || {}
+    check('customer payment accepted by the server', payRes.status === 200 && paidDoc.paymentStatus === 'paid', `HTTP ${payRes.status} ${payRes.data.error || ''}`)
+    check('server total = menu prices + Settings tax/fee + tip', Math.abs((paidDoc.grandTotal ?? 0) - expected) < 0.01, `grandTotal=${paidDoc.grandTotal} expected=${expected}`)
     const free = await attempt(() => updateDoc(doc(customer.db, 'tables', created.table), { status: 'available', currentOrderId: null, occupiedAt: null, updatedAt: Date.now() }))
     check('customer CANNOT free a table', free === 'denied', free)
     s = await snapshotScreens(kitchen.db, orderRef.id, created.table)
@@ -202,7 +237,13 @@ async function snapshotScreens(db, orderId, tableId, label) {
       customerUid: getAuth(customer.app).currentUser.uid, qrToken: TOKEN,
     }).commit())
     if (cheap === 'allowed') created.orders.push(cheapRef.id)
-    check('customer CANNOT set their own prices (₱250 → ₱1)', cheap === 'denied', `${cheap} — prices are trusted from the phone`)
+    check('customer CANNOT set their own prices (₱250 → ₱1)', cheap === 'denied' && placedDoc.items?.[0]?.price === 250, cheap)
+    const apiNoToken = await api(customer, '/api/orders', { orderId: newId(), tableNumber: 99, items: [{ id: created.menu, quantity: 1 }] })
+    check('server refuses an order without the table QR code', apiNoToken.status === 403, `HTTP ${apiNoToken.status}`)
+    const apiBadToken = await api(customer, '/api/orders', { orderId: newId(), tableNumber: 99, qrToken: 'guess', items: [{ id: created.menu, quantity: 1 }] })
+    check('server refuses a wrong QR code', apiBadToken.status === 403, `HTTP ${apiBadToken.status}`)
+    const apiTooMany = await api(customer, '/api/orders', { orderId: newId(), tableNumber: 99, qrToken: TOKEN, items: [{ id: created.menu, quantity: 50 }] })
+    check('server refuses more plates than are in stock', apiTooMany.status === 409, `HTTP ${apiTooMany.status} ${apiTooMany.data.error || ''}`)
 
     const selfPaidRef = doc(collection(customer.db, 'orders'))
     const selfPaid = await attempt(() => writeBatch(customer.db).set(selfPaidRef, {

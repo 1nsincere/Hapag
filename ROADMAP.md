@@ -33,15 +33,16 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 bug sweep: `npm run test:rules` (38 rule checks) + `npm run test:e2e` (37-step click-through, 37/37) added; fixed End shift (now signs out), "Clear All" (replaced by non-destructive Show/Hide served), auto-seating without the table QR code, staff calls grouped per table, login/customer sign-in retry on network blips, persistent offline cache (changes survive refresh/Wi-Fi drops)
 - 2026-11-07 real staff accounts: Admin → Staff (add / role / deactivate / password reset / change my password); Firebase stores passwords; NextAuth verifies the Firebase ID token with Google's keys and reads staff/{uid}; rules take roles from the staff list (self-promotion, deactivated access and admin self-lockout all blocked); table QR codes created transactionally (no overwrite between two admin screens); cashier shows the signed-in person
 - 2026-11-08 light customer theme by default + per-restaurant **brand look** (Admin → System Settings): 7 presets or any colour, light/dark, automatic contrast (WCAG AA), live preview, no colour flash on load
+- 2026-11-08 **server-side prices**: customers order and pay through `/api/orders` (firebase-admin + service account). The server checks the table QR code, takes names/prices from the menu, tax/fee from Settings, re-checks stock for checkout changes, stops duplicate orders on Wi-Fi retries and limits unpaid orders per phone. Phones can no longer write orders or stock directly. "Cash" at checkout now waits for the cashier (it used to mark the order paid), with a cashier alert + badge.
 
 ## Next up — must fix before real use 🔴
-1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Customer checkout fails until this is done.
+1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Until then, phones can still write orders directly (the old rules).
 2. **Change the demo account passwords** (Admin → Staff → Change my password) or deactivate the demo accounts, and add your real team.
 4. **Set a real `NEXTAUTH_SECRET`** — code falls back to a public dev secret.
-6. **Customer order prices are trusted from the phone** (confirmed by the 2026-11-07 run-through). Cashier now flags prices that don't match the menu, but the real fix is creating orders server-side (API route + `firebase-admin`) that look up menu prices — do this together with a real payment gateway (PayMongo), since payment is also still simulated.
+6. **Online payment is still simulated.** QR Ph / card mark the order paid without money moving. Connect PayMongo: `/api/orders/[id]/pay` creates the PayMongo checkout and a verified webhook marks the order paid. Server-side prices are already done.
+6b. **Hosting needs the server key**: set `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or base64 of it) in Vercel. Locally it reads `service-account.json` (git-ignored).
 
 ## Next up — correctness 🟠
-7. Customer quantity increases at checkout don't re-check/decrement stock.
 8. Table goes `available` right after payment even though guests are still eating (pay-first). Decide: free the table on "served", or add a manual "clear table" step in cashier.
 9. `QuickOrderPanel` and shift summary in `SettingsPanel` are stubs (not written to Firestore).
 10. `markOrderServed` / checkout swallow Firestore errors in places — surface permission errors to the user.

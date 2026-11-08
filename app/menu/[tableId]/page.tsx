@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { placeCustomerOrder, newOrderId } from '@/lib/customerApi'
 import {
-  listenToMenu, listenToSettings, listenToTables, updateTableStatus, addOrder,
+  listenToMenu, listenToSettings, listenToTables, updateTableStatus,
   MenuItem, MenuItemVariant, CATEGORIES, CartItem, AppSettings, DEFAULT_SETTINGS, Table,
 } from '@/lib/data'
 import {
@@ -113,6 +114,9 @@ export default function MenuPage() {
   const [detailQty, setDetailQty] = useState(1)
 
   const headerRef = useRef<HTMLDivElement>(null)
+  // One id per order attempt, so a retry after a Wi-Fi drop can't create a duplicate
+  const pendingOrderId = useRef<string | null>(null)
+  useEffect(() => { pendingOrderId.current = null }, [cart])
   const tabsRef = useRef<HTMLElement>(null)
   const cartBarRef = useRef<HTMLButtonElement>(null)
 
@@ -284,29 +288,16 @@ export default function MenuPage() {
     setIsPlacing(true)
     setOrderError('')
     try {
-      const orderItems = cart.map(({ id, baseId, name, price, quantity, image, variantName }) => ({
-        id,
-        ...(baseId ? { baseId } : {}),
-        ...(variantName ? { variantName } : {}),
-        name, price, quantity, image: image ?? '',
-      }))
-
-      const now = Date.now()
-      const orderId = await addOrder(
-        {
-          tableNumber,
-          items: orderItems,
-          status: 'preparing', // addOrder overrides this to 'pending'
-          paymentStatus: 'pending',
-          specialInstructions,
-          createdAt: now,
-          updatedAt: now,
-          total: cartTotal,
-          orderType: 'dine-in',
-          qrToken,
-        },
-        undefined, // table occupancy is handled by the QR scan
-      )
+      pendingOrderId.current ??= newOrderId()
+      // The server looks up names + prices from the menu; the phone only says what it wants
+      const { orderId } = await placeCustomerOrder({
+        orderId: pendingOrderId.current,
+        tableNumber,
+        qrToken,
+        items: cart,
+        specialInstructions,
+      })
+      pendingOrderId.current = null
 
       if (orderId) {
         try {
@@ -326,7 +317,7 @@ export default function MenuPage() {
     } catch (error) {
       setIsPlacing(false)
       const message = error instanceof Error ? error.message : String(error)
-      setOrderError(`We couldn’t send your order. ${message}`)
+      setOrderError(message || 'We couldn’t send your order. Please try again.')
       console.error('[placeOrder] error:', error)
     }
   }

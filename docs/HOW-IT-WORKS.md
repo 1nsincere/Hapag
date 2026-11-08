@@ -85,3 +85,12 @@ Each restaurant gets its own colour on the customer screens.
 - **Readable text is automatic.** Button text, prices and links are checked against WCAG AA (4.5:1) and shades are adjusted if needed. The card shows a live preview and the check result.
 - Press **Save Changes**. Every customer phone updates live; returning phones open in the right colour straight away.
 - The default, Saffron on ivory, is meant for demos. Swap it for the client's colour during setup.
+
+## Prices & payment safety
+
+- **The phone never decides the price.** When a guest orders or pays, the Hapag server looks up every dish's name and price on the menu, plus tax and service fee from Settings. A tampered phone still pays the real price.
+- **Orders only come from the table.** The server checks the secret in the table's QR code and refuses orders from home or with a guessed code.
+- **No double orders.** If the Wi-Fi drops while sending, the phone retries safely, and the same order is never created twice.
+- **Stock is checked.** The server refuses more plates than are left, including dishes added at checkout. Removed dishes go back into stock.
+- **Cash = pay at the counter.** If a guest picks Cash, the order is not marked paid. The cashier gets a blue "paying cash at the counter" alert, and the order goes to the kitchen after **Process Payment**.
+- **Online payment (QR Ph / card) is still a demo** until a payment provider (PayMongo) is connected.

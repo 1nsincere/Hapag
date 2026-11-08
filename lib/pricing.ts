@@ -5,7 +5,11 @@
  */
 import type { AppSettings } from './data'
 
-const round2 = (n: number) => Math.round(n * 100) / 100
+/** Used when Settings has no value yet (shared by browser and server). */
+export const DEFAULT_TAX_RATE = '8'
+export const DEFAULT_SERVICE_FEE = '2.50'
+
+export const round2 = (n: number) => Math.round(n * 100) / 100
 
 export function orderTotals(subtotal: number, settings: Pick<AppSettings, 'taxRate' | 'serviceFee'>, opts: { tipPercent?: number; serviceFee?: boolean } = {}) {
   const taxRate = parseFloat(settings.taxRate) || 0
