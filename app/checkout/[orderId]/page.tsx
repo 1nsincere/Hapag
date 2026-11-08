@@ -232,8 +232,8 @@ export default function CheckoutPage() {
           </div>
         ) : null}
         {payError && (
-          <div className="hp-notice" role="alert" style={{ borderColor: 'rgba(229,138,120,.4)', background: 'rgba(229,138,120,.1)' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--hp-danger)' }}>error</span>
+          <div className="hp-notice hp-notice-danger" role="alert">
+            <span className="material-symbols-outlined">error</span>
             {payError}
           </div>
         )}
@@ -269,7 +269,7 @@ export default function CheckoutPage() {
         {!isPaid && addOns.length > 0 && (
           <section>
             <div className="hp-card-head" style={{ padding: '6px 2px 4px' }}>
-              <h2 className="hp-title-sm">Something <em style={{ fontStyle: 'italic', color: 'var(--hp-gold-hi)' }}>more?</em></h2>
+              <h2 className="hp-title-sm">Something <em style={{ fontStyle: 'italic', color: 'var(--hp-accent-text)' }}>more?</em></h2>
             </div>
             <div className="hp-scroller">
               {addOns.map(item => (

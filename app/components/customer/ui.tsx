@@ -31,13 +31,14 @@ export function delay(ms: number): CSSProperties {
 /** Dietary / marketing tags get a quiet coloured dot instead of loud pills. */
 export function tagTone(tag: string): CSSProperties {
   const t = tag.toLowerCase()
-  let tone = 'rgba(242,234,219,.42)'
-  if (/spicy|hot|chili/.test(t)) tone = '#e58a78'
-  else if (/vegan|vegetarian|plant/.test(t)) tone = '#9cc59a'
-  else if (/best|popular|signature|favorite/.test(t)) tone = '#e3c690'
-  else if (/new/.test(t)) tone = '#8fb8d9'
-  else if (/chef|recommend/.test(t)) tone = '#c7a3d9'
-  else if (/gluten|free|organic|fresh|healthy/.test(t)) tone = '#a9c98a'
+  // Mid-tones that read on both the light and dark themes; "bestseller" follows the brand colour
+  let tone = 'var(--hp-text-3)'
+  if (/spicy|hot|chili/.test(t)) tone = '#D9452B'
+  else if (/vegan|vegetarian|plant/.test(t)) tone = '#2E8B57'
+  else if (/best|popular|signature|favorite/.test(t)) tone = 'var(--hp-accent)'
+  else if (/new/.test(t)) tone = '#2F6FB5'
+  else if (/chef|recommend/.test(t)) tone = '#8E44AD'
+  else if (/gluten|free|organic|fresh|healthy/.test(t)) tone = '#5C9E31'
   return { ['--tone' as string]: tone } as CSSProperties
 }
 

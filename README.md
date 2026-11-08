@@ -4,6 +4,8 @@
 
 Hapag (Filipino for *dining table*) is table-side QR ordering for restaurants: customers scan a table QR code, order and pay from their phone; cashier, kitchen and admin screens update in real time.
 
+Each restaurant sets its own brand colour and light/dark look in Admin → System Settings; readable contrast is worked out automatically.
+
 Built with Next.js 16, React 19, Tailwind 4, Firebase (Firestore + Auth) and NextAuth.
 
 See **[ROADMAP.md](ROADMAP.md)** for how the system works, what's done and what's next.

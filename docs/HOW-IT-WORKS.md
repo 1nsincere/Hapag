@@ -75,3 +75,13 @@ The cashier can switch the big left panel between **Menu** (to ring up walk-ins)
 - **The QR address is automatic.** Online, it uses the website's address; while testing on a computer, it uses that computer's Wi-Fi address so phones on the same network can open it. Only set a custom address (e.g. your own domain) in **System Settings** if you need to.
 - **Menu photos need no setup.** In **Menu Manager**, tap *Upload a photo* — it's resized and saved with the dish automatically. No Cloudinary/imgbb account or API keys.
 - **Orders are private.** A customer's order page only opens on the phone that placed it. Staff can always see every order.
+
+## Brand look (Admin → System Settings)
+
+Each restaurant gets its own colour on the customer screens.
+
+- **Pick a preset** (Saffron, Terracotta, Emerald, Ocean, Burgundy, Charcoal, Noir & Gold) or type the restaurant's exact brand colour.
+- **Choose Light or Dark background.** Light (warm ivory) suits most places; Dark suits bars and fine dining.
+- **Readable text is automatic.** Button text, prices and links are checked against WCAG AA (4.5:1) and shades are adjusted if needed. The card shows a live preview and the check result.
+- Press **Save Changes**. Every customer phone updates live; returning phones open in the right colour straight away.
+- The default, Saffron on ivory, is meant for demos. Swap it for the client's colour during setup.

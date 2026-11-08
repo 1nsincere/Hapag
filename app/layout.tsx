@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Manrope } from 'next/font/google'
 import './globals.css'
 import './hapag.css'
 import Providers from './providers'
+import { THEME_BOOT_SCRIPT } from './components/ThemeSync'
 
 // Customer-facing brand fonts (Hapag Noir). Self-hosted by next/font — no
 // render-blocking request to Google at runtime.
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0b0a08',
+  themeColor: '#FBF7F1',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -39,8 +40,11 @@ const STAFF_FONT_URL =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    // suppressHydrationWarning: the theme boot script sets the brand colour on <html> before React loads
+    <html lang="en" className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
       <head>
+        {/* Apply the restaurant's cached brand theme before first paint (no colour flash) */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Staff screens font + icon font (icons use display=block so ligature names never flash) */}

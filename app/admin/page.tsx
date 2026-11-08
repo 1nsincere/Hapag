@@ -7,6 +7,7 @@ import { signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import FloorPlanEditor from './components/FloorPlanEditor'
 import StaffManager from './components/StaffManager'
+import BrandThemeCard from './components/BrandThemeCard'
 import { StaffGuide } from '@/app/components/StaffGuide'
 import { compressMenuPhoto } from '@/lib/imageCompress'
 import { useQrBaseUrl, cleanBaseUrl, type QrBaseSource } from '@/lib/useQrBaseUrl'
@@ -175,6 +176,13 @@ function SettingsView({ initialSettings }: { initialSettings: AppSettings }) {
             />
           </div>
         ))}
+
+        <BrandThemeCard
+          color={settings.brandColor}
+          mode={settings.themeMode}
+          restaurantName={settings.restaurantName}
+          onChange={next => setSettings({ ...settings, ...next })}
+        />
 
         <QrAddressCard
           value={settings.baseUrl ?? ''}

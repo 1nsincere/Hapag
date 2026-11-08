@@ -56,6 +56,8 @@ export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'in-progress' |
 export interface AppSettings {
   [key: string]: string | undefined;
   restaurantName: string;
+  brandColor?: string;   // customer screens' brand colour (Admin → Settings)
+  themeMode?: string;    // 'light' | 'dark'
   stationName: string;
   taxRate: string;
   serviceFee: string;
