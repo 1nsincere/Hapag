@@ -254,3 +254,89 @@ html:has(.lp) body { background: #0F2B1F; }
   .lp *, .lp *::before, .lp *::after { transition: none !important; }
   .lp [data-reveal] { transform: none !important; }
 }
+
+/* ═══ Character layer: banig weave, ticket printer, kitchen rail, kain na ═══ */
+
+/* Banig (woven mat) — hero texture + woven border strips */
+.lp-hero {
+  background-color: var(--leaf);
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.022) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.022) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.022) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.022) 75%);
+  background-size: 28px 28px; background-position: 0 0, 14px 14px;
+}
+.lp-weave {
+  height: 18px;
+  background-image:
+    linear-gradient(45deg, rgba(20,23,15,.28) 25%, transparent 25%, transparent 75%, rgba(20,23,15,.28) 75%),
+    linear-gradient(45deg, rgba(20,23,15,.28) 25%, transparent 25%, transparent 75%, rgba(20,23,15,.28) 75%),
+    repeating-linear-gradient(90deg, var(--mango) 0 18px, var(--achuete) 18px 36px, #E8DDBE 36px 54px, var(--leaf-3) 54px 72px);
+  background-size: 9px 9px, 9px 9px, auto; background-position: 0 0, 4.5px 4.5px, 0 0;
+}
+
+/* Ticket printer next to the live phone */
+.lp-printer { position: absolute; z-index: 3; top: 7%; left: -66%; width: 240px; filter: drop-shadow(0 22px 30px rgba(0,0,0,.45)); }
+.lp-printer-body {
+  position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px;
+  border-radius: 12px 12px 6px 6px; background: linear-gradient(#2A302A, #171B17); color: rgba(235,239,228,.55);
+  font: 500 10px/1 var(--mono); letter-spacing: .12em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.lp-printer-body::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -3px; height: 6px; border-radius: 3px; background: #050605; }
+.lp-printer-led { width: 7px; height: 7px; border-radius: 50%; background: var(--mango); box-shadow: 0 0 8px var(--mango); animation: lpLed 3.8s steps(1) infinite; }
+@keyframes lpLed { 0%, 30% { opacity: 1; } 31%, 100% { opacity: .35; } }
+.lp-printer-slot { position: relative; margin: 0 10px; overflow: hidden; padding-bottom: 6px; }
+.lp-ticket-print { position: relative; width: 100%; transform: none; animation: lpPrint 1.3s cubic-bezier(.3, .7, .3, 1) both; }
+@keyframes lpPrint { from { transform: translateY(-104%); } to { transform: none; } }
+@media (max-width: 1000px) { .lp-printer { left: -30%; } }
+@media (max-width: 640px) { .lp-printer { left: -12%; top: 4%; width: 205px; } }
+
+/* Friday rush — kitchen rail */
+.lp-rush { padding: clamp(80px, 10vw, 130px) 0 clamp(80px, 10vw, 120px); background: #0C2419; border-block: 1px solid var(--leaf-line); }
+.lp-rush-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 60px; align-items: end; margin-bottom: 56px; }
+.lp-rush-head .lp-lead { margin: 0; }
+.lp-rail-wrap { position: relative; }
+.lp-rail { position: absolute; left: 0; right: 0; top: 0; height: 14px; background: linear-gradient(#BFC4BC, #7E847B 60%, #5A5F57); box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+.lp-rail-tickets {
+  list-style: none; margin: 0; display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none;
+  padding: 0 max(24px, calc((100vw - 1200px) / 2)) 30px;
+}
+.lp-rail-tickets::-webkit-scrollbar { display: none; }
+.lp-rail-ticket {
+  position: relative; flex: none; width: 220px; margin-top: 4px; padding: 26px 14px 16px; color: var(--ink);
+  font: 400 12.5px/1.5 var(--mono); background: var(--paper); transform-origin: top center;
+  box-shadow: 0 16px 30px -14px rgba(0,0,0,.6);
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+          mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+  animation: lpSway 6s ease-in-out infinite;
+}
+.lp-rail-ticket:nth-child(2) { animation-delay: -1.5s; } .lp-rail-ticket:nth-child(3) { animation-delay: -3s; } .lp-rail-ticket:nth-child(4) { animation-delay: -4.5s; } .lp-rail-ticket:nth-child(5) { animation-delay: -2.2s; }
+@keyframes lpSway { 0%, 100% { transform: rotate(-.8deg); } 50% { transform: rotate(.8deg); } }
+.lp-clip { position: absolute; top: -2px; left: 50%; width: 46px; height: 14px; transform: translateX(-50%); border-radius: 0 0 4px 4px; background: linear-gradient(#9CA198, #5F645C); }
+.lp-rail-ticket ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.lp-rail-state { color: var(--ink-2); }
+.lp-rail-timer { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--paper-line); }
+.lp-rail-timer span { font-size: 10.5px; letter-spacing: .1em; color: var(--ink-2); }
+.lp-rail-timer b { font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.lp-rail-ticket.is-late .lp-rail-timer b { color: var(--achuete); }
+.lp-rail-ticket.is-late .lp-rail-state { color: var(--achuete); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+@media (max-width: 860px) { .lp-rush-head { grid-template-columns: 1fr; } }
+
+/* Feature thumbnails */
+.lp-feature-img { position: relative; aspect-ratio: 16 / 10; margin-bottom: 22px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--paper-line); background: var(--paper-2); }
+.lp-feature-img img { object-fit: cover; object-position: top; transition: transform .8s var(--ease); }
+.lp-feature-col:hover .lp-feature-img img { transform: scale(1.04); }
+
+/* Kain na — closing band */
+.lp-kain { background: var(--mango); color: var(--ink); }
+.lp-kain-inner { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 28px; padding-block: clamp(60px, 9vw, 110px); }
+.lp-kain-title { margin: 0; font-family: var(--sans); font-weight: 900; font-stretch: 62%; font-size: clamp(5rem, 17vw, 14rem); line-height: .78; letter-spacing: -.02em; text-transform: uppercase; }
+.lp-kain-sub { margin: 18px 0 0; font: 500 15px/1.4 var(--mono); }
+.lp-kain-sub i { opacity: .6; }
+.lp-btn-ink { height: 58px; padding: 0 28px; background: var(--ink); color: var(--paper); font-size: 16px; }
+.lp-btn-ink:hover { background: #26291F; }
+.lp-kain .lp-weave { height: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-ticket-print, .lp-rail-ticket, .lp-printer-led { animation: none !important; }
+}

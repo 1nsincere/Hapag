@@ -27,10 +27,27 @@ const TIMELINE = [
   { time: 'Anytime', title: 'The owner checks in', body: 'Menu, tables, floor plan, staff and the restaurant’s colours, all managed in one place.', shot: 'admin-floor', device: 'desktop' },
 ] as const
 
+/** Tickets the hero printer cycles through */
+const PRINT_QUEUE = [
+  { head: 'TABLE 04', meta: '#A031 · 7:02 PM', lines: [['1× Kare-Kare', 'good for 3–4'], ['3× Garlic rice']], total: '₱1,430.00', stamp: 'NEW' },
+  { head: 'TABLE 02', meta: '#A032 · 7:04 PM', lines: [['1× Sizzling Sisig'], ['2× Calamansi juice']], total: '₱500.00', stamp: 'PAID · QR PH' },
+  { head: 'TAKEOUT', meta: '#A033 · 7:06 PM', lines: [['3× Pork BBQ'], ['3× Garlic rice']], total: '₱630.00', stamp: 'CASH' },
+  { head: 'TABLE 07', meta: '#A034 · 7:09 PM', lines: [['2× Halo-Halo'], ['1× Leche flan']], total: '₱510.00', stamp: 'NEW' },
+]
+
+/** The kitchen rail: minutes already waiting when the page opens */
+const RAIL = [
+  { table: 'Table 3', items: ['1× Crispy Pata', '2× Bagoong rice'], waited: 14 * 60 + 20, state: 'Cooking' },
+  { table: 'Table 5', items: ['2× Chicken Inasal', '2× Garlic rice'], waited: 9 * 60 + 5, state: 'Cooking' },
+  { table: 'Takeout', items: ['3× Pork BBQ', '1× Pancit Canton'], waited: 6 * 60 + 41, state: 'In queue' },
+  { table: 'Table 8', items: ['1× Beef Mami', '1× Leche flan'], waited: 3 * 60 + 12, state: 'In queue' },
+  { table: 'Table 1', items: ['1× Sinigang na Baboy', '4× Sago’t Gulaman'], waited: 48, state: 'New' },
+]
+
 const FEATURES = [
-  { group: 'For guests', items: ['Order without downloading anything', 'Photo menu with sizes and sold-out labels', 'Pay by QR Ph, card, or cash at the counter', 'Follow the order live, from kitchen to table'] },
-  { group: 'For the floor', items: ['Alerts stay on screen until someone handles them', 'A live floor plan, across every floor', 'A “Call staff” button at every table', 'Keeps working when the Wi-Fi drops'] },
-  { group: 'For the owner', items: ['Menu, tables and staff logins in one place', 'The restaurant’s own colours on every guest screen', 'Prices are checked by the server, not the phone', 'Each table’s QR code carries its own secret'] },
+  { group: 'For guests', img: '/landing/guest-menu.jpg', items: ['Order without downloading anything', 'Photo menu with sizes and sold-out labels', 'Pay by QR Ph, card, or cash at the counter', 'Follow the order live, from kitchen to table'] },
+  { group: 'For the floor', img: '/landing/cashier-floor.jpg', items: ['Alerts stay on screen until someone handles them', 'A live floor plan, across every floor', 'A “Call staff” button at every table', 'Keeps working when the Wi-Fi drops'] },
+  { group: 'For the owner', img: '/landing/admin-menu.jpg', items: ['Menu, tables and staff logins in one place', 'The restaurant’s own colours on every guest screen', 'Prices are checked by the server, not the phone', 'Each table’s QR code carries its own secret'] },
 ]
 
 const ROLES: { id: DemoRole | 'guest'; title: string; body: string; cta: string }[] = [
@@ -74,10 +91,13 @@ export default function Landing({ guestPath }: { guestPath: string }) {
     <div ref={root} className={`lp ${lpSans.variable} ${lpMono.variable}`}>
       <Nav scrolled={scrolled} />
       <Hero guestPath={guestPath} />
+      <Weave />
       <Timeline />
+      <Rush />
       <Features />
       <BrandStudio />
       <Demo guestPath={guestPath} origin={origin} />
+      <KainNa />
       <Footer />
     </div>
   )
@@ -130,18 +150,84 @@ function Hero({ guestPath }: { guestPath: string }) {
           </div>
           <p className="lp-phone-hint">This phone is live. Tap “View the menu”.</p>
 
-          <div className="lp-ticket lp-ticket-a" aria-hidden="true">
-            <div className="lp-ticket-row"><b>TABLE 04</b><span>#A031 · 7:02 PM</span></div>
-            <div className="lp-ticket-line">1× Kare-Kare <em>good for 3–4</em></div>
-            <div className="lp-ticket-line">3× Garlic rice</div>
-            <div className="lp-ticket-row lp-ticket-total"><span>TOTAL</span><b>₱1,430.00</b></div>
-            <span className="lp-ticket-stamp">NEW</span>
-          </div>
+          <TicketPrinter />
           <div className="lp-ticket lp-ticket-b" aria-hidden="true">
             <div className="lp-ticket-row"><b>TABLE 06</b><span>7:21 PM</span></div>
             <div className="lp-ticket-line">Ready to serve</div>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+/** A receipt printer that keeps printing the next order */
+function TicketPrinter() {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = setInterval(() => setN(v => v + 1), 3800)
+    return () => clearInterval(t)
+  }, [])
+  const tk = PRINT_QUEUE[n % PRINT_QUEUE.length]
+  return (
+    <div className="lp-printer" aria-hidden="true">
+      <div className="lp-printer-body"><span className="lp-printer-led" /><span>HAPAG · KITCHEN</span></div>
+      <div className="lp-printer-slot">
+        <div key={n} className="lp-ticket lp-ticket-print">
+          <div className="lp-ticket-row"><b>{tk.head}</b><span>{tk.meta}</span></div>
+          {tk.lines.map(([item, note]) => (
+            <div key={item} className="lp-ticket-line">{item}{note && <em>{note}</em>}</div>
+          ))}
+          <div className="lp-ticket-row lp-ticket-total"><span>TOTAL</span><b>{tk.total}</b></div>
+          <span className="lp-ticket-stamp">{tk.stamp}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Woven banig strip used as a section border */
+function Weave() {
+  return <div className="lp-weave" aria-hidden="true" />
+}
+
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+
+/** Friday rush: tickets on the kitchen rail, timers running */
+function Rush() {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(v => v + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <section className="lp-rush" aria-labelledby="rush-title">
+      <div className="lp-wrap">
+        <header className="lp-rush-head">
+          <div>
+            <p className="lp-label">Friday, 7:30 PM</p>
+            <h2 className="lp-h2" id="rush-title">Twelve tables. One kitchen.</h2>
+          </div>
+          <p className="lp-lead">Every paid order lands on the kitchen screen with its own timer, so nothing gets forgotten under the heat lamp. Anything waiting over ten minutes turns red.</p>
+        </header>
+      </div>
+      <div className="lp-rail-wrap">
+        <div className="lp-rail" aria-hidden="true" />
+        <ul className="lp-rail-tickets">
+          {RAIL.map(r => {
+            const sec = r.waited + tick
+            const late = sec >= 600
+            return (
+              <li key={r.table} className={`lp-rail-ticket${late ? ' is-late' : ''}`}>
+                <span className="lp-clip" aria-hidden="true" />
+                <div className="lp-ticket-row"><b>{r.table.toUpperCase()}</b><span className="lp-rail-state">{late ? 'Late' : r.state}</span></div>
+                <ul>{r.items.map(i => <li key={i}>{i}</li>)}</ul>
+                <div className="lp-rail-timer"><span>WAITING</span><b>{mmss(sec)}</b></div>
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </section>
   )
@@ -207,6 +293,7 @@ function Features() {
         <div className="lp-feature-cols">
           {FEATURES.map(f => (
             <div key={f.group} className="lp-feature-col" data-reveal>
+              <div className="lp-feature-img"><Image src={f.img} alt="" fill sizes="(max-width: 860px) 92vw, 380px" /></div>
               <h3>{f.group}</h3>
               <ul>{f.items.map(it => <li key={it}>{it}</li>)}</ul>
             </div>
@@ -351,6 +438,22 @@ function Demo({ guestPath, origin }: { guestPath: string; origin: string }) {
           ))}
           {error && <li className="lp-demo-error" role="alert">{error}</li>}
         </ul>
+      </div>
+    </section>
+  )
+}
+
+/** Closing band: "Kain na!" is Tagalog for "Let's eat!" */
+function KainNa() {
+  return (
+    <section className="lp-kain" aria-labelledby="kain-title">
+      <Weave />
+      <div className="lp-wrap lp-kain-inner">
+        <div>
+          <h2 className="lp-kain-title" id="kain-title">Kain na.</h2>
+          <p className="lp-kain-sub"><i>(Tagalog)</i> Let’s eat. Your guests are ready to order.</p>
+        </div>
+        <a href="#demo" className="lp-btn lp-btn-ink">Try the live demo</a>
       </div>
     </section>
   )
