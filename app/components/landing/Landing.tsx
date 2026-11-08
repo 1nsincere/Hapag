@@ -13,6 +13,7 @@ import type { DemoRole } from '@/lib/demo'
 import { SITE } from '@/lib/site'
 import { enterDemo } from './enterDemo'
 import { lpMono, lpSans } from './fonts'
+import { bell, getSound, getSoundServer, printer, setSound, subscribeSound, tick } from './sound'
 import './landing.css'
 
 // ─── Content ────────────────────────────────────────────────────────────────
@@ -114,8 +115,21 @@ function Nav({ scrolled }: { scrolled: boolean }) {
         <a href="#features">Features</a>
         <a href="#brand">Your colours</a>
       </nav>
-      <a href="#demo" className="lp-btn lp-btn-sm">Try the demo</a>
+      <div className="lp-nav-actions">
+        <SoundToggle />
+        <a href="#demo" className="lp-btn lp-btn-sm">Try the demo</a>
+      </div>
     </header>
+  )
+}
+
+function SoundToggle() {
+  const on = useSyncExternalStore(subscribeSound, getSound, getSoundServer)
+  return (
+    <button type="button" className={`lp-sound${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => setSound(!on)} title={on ? 'Turn sound off' : 'Turn sound on'}>
+      <span className="lp-sound-bars" aria-hidden="true"><i /><i /><i /><i /></span>
+      Sound {on ? 'on' : 'off'}
+    </button>
   )
 }
 
@@ -166,7 +180,7 @@ function TicketPrinter() {
   const [n, setN] = useState(0)
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const t = setInterval(() => setN(v => v + 1), 3800)
+    const t = setInterval(() => { setN(v => v + 1); printer() }, 3800)
     return () => clearInterval(t)
   }, [])
   const tk = PRINT_QUEUE[n % PRINT_QUEUE.length]
@@ -196,11 +210,13 @@ const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padSta
 
 /** Friday rush: tickets on the kitchen rail, timers running */
 function Rush() {
-  const [tick, setTick] = useState(0)
+  const [secs, setSecs] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setTick(v => v + 1), 1000)
+    const t = setInterval(() => setSecs(v => v + 1), 1000)
     return () => clearInterval(t)
   }, [])
+  // Ding when a ticket goes over 10 minutes
+  useEffect(() => { if (secs > 0 && RAIL.some(r => r.waited + secs === 600)) bell() }, [secs])
   return (
     <section className="lp-rush" aria-labelledby="rush-title">
       <div className="lp-wrap">
@@ -216,7 +232,7 @@ function Rush() {
         <div className="lp-rail" aria-hidden="true" />
         <ul className="lp-rail-tickets">
           {RAIL.map(r => {
-            const sec = r.waited + tick
+            const sec = r.waited + secs
             const late = sec >= 600
             return (
               <li key={r.table} className={`lp-rail-ticket${late ? ' is-late' : ''}`}>
@@ -332,7 +348,7 @@ function BrandStudio() {
                 role="radio"
                 aria-checked={active?.id === p.id}
                 className={`lp-swatch${active?.id === p.id ? ' is-on' : ''}`}
-                onClick={() => { setColor(p.color); setMode(p.mode) }}
+                onClick={() => { setColor(p.color); setMode(p.mode); tick() }}
               >
                 <i style={{ '--sw': p.color, '--swbg': p.mode === 'dark' ? '#0B0A08' : p.color } as CSSProperties} />
                 {p.name}
@@ -347,7 +363,7 @@ function BrandStudio() {
           <div className="lp-brand-meta">
             <div className="lp-toggle" role="radiogroup" aria-label="Background">
               {(['light', 'dark'] as const).map(m => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'is-on' : ''} onClick={() => setMode(m)}>
+                <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'is-on' : ''} onClick={() => { setMode(m); tick() }}>
                   {m === 'light' ? 'Light' : 'Dark'}
                 </button>
               ))}
@@ -397,7 +413,8 @@ function Demo({ guestPath, origin }: { guestPath: string; origin: string }) {
 
   const open = useCallback(async (role: DemoRole | 'guest') => {
     setError('')
-    if (role === 'guest') { window.location.assign(guestPath); return }
+    bell()
+    if (role === 'guest') { setTimeout(() => window.location.assign(guestPath), getSound() ? 350 : 0); return }
     setBusy(role)
     try { await enterDemo(role) } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); setBusy(null) }
   }, [guestPath])

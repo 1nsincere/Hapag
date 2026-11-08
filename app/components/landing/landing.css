@@ -340,3 +340,20 @@ html:has(.lp) body { background: #0F2B1F; }
 @media (prefers-reduced-motion: reduce) {
   .lp-ticket-print, .lp-rail-ticket, .lp-printer-led { animation: none !important; }
 }
+
+/* Sound toggle (off by default) */
+.lp-nav-actions { display: flex; align-items: center; gap: 10px; }
+.lp-sound {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 10px;
+  border: 1.5px solid var(--leaf-line); background: transparent; color: var(--on-leaf-2);
+  font: 500 12px/1 var(--mono); letter-spacing: .04em; cursor: pointer; transition: border-color .2s, color .2s;
+}
+.lp-sound:hover { border-color: var(--on-leaf-2); color: var(--on-leaf); }
+.lp-sound.is-on { color: var(--mango); border-color: rgba(242,179,61,.5); }
+.lp-sound-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.lp-sound-bars i { width: 2px; height: 3px; border-radius: 1px; background: currentColor; }
+.lp-sound.is-on .lp-sound-bars i { animation: lpEq 0.9s ease-in-out infinite; }
+.lp-sound.is-on .lp-sound-bars i:nth-child(2) { animation-delay: -.3s; } .lp-sound.is-on .lp-sound-bars i:nth-child(3) { animation-delay: -.6s; } .lp-sound.is-on .lp-sound-bars i:nth-child(4) { animation-delay: -.15s; }
+@keyframes lpEq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+@media (max-width: 520px) { .lp-sound { padding: 0 10px; font-size: 0; gap: 0; } .lp-sound-bars { margin: 0; } }
+@media (prefers-reduced-motion: reduce) { .lp-sound.is-on .lp-sound-bars i { animation: none; height: 8px; } }
