@@ -134,6 +134,10 @@ const alerts = p => p.locator('[aria-label="Alerts that need action"] > div')
   await step('customer: confirm & pay → receipt with tip and total', async () => {
     await phone.getByRole('button', { name: /^Pay ·/ }).click()
     await phone.getByRole('button', { name: /confirm & pay/i }).click()
+    // Practice payment page (stands in for PayMongo/Xendit) → Pay → signed webhook → receipt
+    await phone.waitForURL(/\/pay\/practice\//, { timeout: 30000 })
+    await phone.getByText('Practice payment.').waitFor()
+    await phone.getByRole('button', { name: /^Pay ₱/ }).click()
     await phone.waitForURL(/\/confirmation\//, { timeout: 30000 })
     await phone.getByText('Total paid').waitFor({ timeout: 15000 }).catch(() => {})
     await phone.waitForTimeout(1500) // let the fade-in finish, like a person would

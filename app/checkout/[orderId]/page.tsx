@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   listenToOrder, listenToSettings, listenToMenu,
@@ -29,6 +29,8 @@ export default function CheckoutPage() {
   const params = useParams()
   const router = useRouter()
   const orderId = params.orderId as string
+  // Back from the payment page without paying
+  const paymentCancelled = useSearchParams().get('payment') === 'cancelled'
 
   const [order, setOrder] = useState<Order | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
@@ -186,6 +188,11 @@ export default function CheckoutPage() {
       const result = await payCustomerOrder(orderId, { paymentMethod, tipPercent: cashTip, items: orderItems })
       try { localStorage.removeItem(`cart_${order.tableNumber}`) } catch { /* non-critical */ }
 
+      if (result.status === 'redirect' && result.checkoutUrl) {
+        // Off to the payment provider; it sends the guest back to the receipt
+        window.location.assign(result.checkoutUrl)
+        return
+      }
       if (result.status === 'pay-at-counter') {
         // Not paid yet — the status page tells them to pay at the counter
         router.push(`/status/${orderId}`)
@@ -218,6 +225,12 @@ export default function CheckoutPage() {
       />
 
       <main className="hp-container hp-stack" style={{ paddingBottom: 150 }}>
+        {paymentCancelled && !isPaid && !payError && (
+          <div className="hp-notice" role="status">
+            <span className="material-symbols-outlined">info</span>
+            <span>Payment cancelled — you haven&apos;t been charged. You can pay again below.</span>
+          </div>
+        )}
         {cartRestored && (
           <div className="hp-notice hp-notice-success" role="status">
             <span className="material-symbols-outlined">history</span>

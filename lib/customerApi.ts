@@ -60,7 +60,7 @@ export function payCustomerOrder(orderId: string, input: {
   tipPercent: number
   items: CartItem[]
 }) {
-  return post<{ status: 'paid' | 'pay-at-counter'; grandTotal: number }>(
+  return post<{ status: 'paid' | 'pay-at-counter' | 'redirect'; grandTotal: number; checkoutUrl?: string; practice?: boolean }>(
     `/api/orders/${encodeURIComponent(orderId)}/pay`,
     { ...input, items: wanted(input.items) },
   )

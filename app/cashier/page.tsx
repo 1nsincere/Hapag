@@ -654,6 +654,11 @@ function CashierContent() {
                                   <span className="text-sm font-semibold text-zinc-700">{timeString}</span>
                                 </div>
                                 <p className="text-xs font-mono text-zinc-600">Order #{order.id.slice(0, 8)}</p>
+                                {order.paymentIssue && (
+                                  <p className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1 flex items-start gap-1 max-w-[260px]">
+                                    <span className="material-symbols-outlined text-sm">error</span>{order.paymentIssue}
+                                  </p>
+                                )}
                                 {order.payAtCounter && (
                                   <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
                                     <span className="material-symbols-outlined text-[14px]">payments</span>Paying cash at the counter

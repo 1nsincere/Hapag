@@ -488,6 +488,10 @@ export interface Order {
   qrToken?: string       // secret from the table's QR code — proves the order came from the table
   payAtCounter?: boolean // customer chose Cash at checkout — the cashier collects it
   priceSource?: 'server' // prices/totals were set by the server from the menu, not the phone
+  paymentSessionId?: string  // current online payment attempt (server-only paymentSessions/{id})
+  paymentProvider?: string   // 'practice' | 'paymongo' | …
+  paymentReference?: string  // provider's reference once paid
+  paymentIssue?: string | null // money arrived but didn't match — cashier must check
 }
 
 /**

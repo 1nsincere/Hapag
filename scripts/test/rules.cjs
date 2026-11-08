@@ -178,9 +178,20 @@ async function snapshotScreens(db, orderId, tableId, label) {
     const payRes = await api(customer, `/api/orders/${orderId}/pay`, {
       paymentMethod: 'qrph', tipPercent: 10, items: s.o.items.map(i => ({ ...i, price: 1 })),
     })
+    const startedDoc = (await getDoc(doc(admin.db, 'orders', orderId))).data() || {}
+    const sessionId = (payRes.data.checkoutUrl || '').split('/pay/practice/')[1] || ''
+    check('server sends the guest to the payment page', payRes.status === 200 && payRes.data.status === 'redirect' && /^[a-f0-9]{32}$/.test(sessionId), `HTTP ${payRes.status} ${payRes.data.error || payRes.data.status}`)
+    check('order is NOT paid just because the phone tapped Pay', startedDoc.paymentStatus === 'pending', `paymentStatus=${startedDoc.paymentStatus}`)
+    check('server total = menu prices + Settings tax/fee + tip', Math.abs((startedDoc.grandTotal ?? 0) - expected) < 0.01, `grandTotal=${startedDoc.grandTotal} expected=${expected}`)
+
+    const forged = JSON.stringify({ type: 'payment.paid', data: { sessionId, amount: expected, reference: 'FAKE' } })
+    const forgedRes = await fetch(BASE + '/api/payments/webhook/practice', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-hapag-signature': 't=' + Math.floor(Date.now() / 1000) + ',v1=' + 'ab'.repeat(32) }, body: forged }).catch(() => ({ status: 0 }))
+    const stillUnpaid = (await getDoc(doc(admin.db, 'orders', orderId))).data()?.paymentStatus === 'pending'
+    check('a FAKE "payment received" message is rejected', forgedRes.status === 401 && stillUnpaid, `HTTP ${forgedRes.status}`)
+
+    const practiceRes = await fetch(BASE + '/api/payments/practice/' + sessionId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pay' }) }).catch(() => ({ status: 0 }))
     const paidDoc = (await getDoc(doc(admin.db, 'orders', orderId))).data() || {}
-    check('customer payment accepted by the server', payRes.status === 200 && paidDoc.paymentStatus === 'paid', `HTTP ${payRes.status} ${payRes.data.error || ''}`)
-    check('server total = menu prices + Settings tax/fee + tip', Math.abs((paidDoc.grandTotal ?? 0) - expected) < 0.01, `grandTotal=${paidDoc.grandTotal} expected=${expected}`)
+    check('guest pays on the payment page → signed webhook marks it paid', practiceRes.status === 200 && paidDoc.paymentStatus === 'paid' && /^PRACTICE-/.test(paidDoc.paymentReference || ''), `HTTP ${practiceRes.status} paymentStatus=${paidDoc.paymentStatus}`)
     const free = await attempt(() => updateDoc(doc(customer.db, 'tables', created.table), { status: 'available', currentOrderId: null, occupiedAt: null, updatedAt: Date.now() }))
     check('customer CANNOT free a table', free === 'denied', free)
     s = await snapshotScreens(kitchen.db, orderRef.id, created.table)

@@ -34,12 +34,13 @@ _Last reviewed: 2026-11-07_
 - 2026-11-07 real staff accounts: Admin → Staff (add / role / deactivate / password reset / change my password); Firebase stores passwords; NextAuth verifies the Firebase ID token with Google's keys and reads staff/{uid}; rules take roles from the staff list (self-promotion, deactivated access and admin self-lockout all blocked); table QR codes created transactionally (no overwrite between two admin screens); cashier shows the signed-in person
 - 2026-11-08 light customer theme by default + per-restaurant **brand look** (Admin → System Settings): 7 presets or any colour, light/dark, automatic contrast (WCAG AA), live preview, no colour flash on load
 - 2026-11-08 **server-side prices**: customers order and pay through `/api/orders` (firebase-admin + service account). The server checks the table QR code, takes names/prices from the menu, tax/fee from Settings, re-checks stock for checkout changes, stops duplicate orders on Wi-Fi retries and limits unpaid orders per phone. Phones can no longer write orders or stock directly. "Cash" at checkout now waits for the cashier (it used to mark the order paid), with a cashier alert + badge.
+- 2026-11-08 **real payment flow (practice provider)**: QR Ph / card send the guest to a payment page; only a signed, verified webhook marks the order paid (amount must match). Provider-neutral (`lib/server/payments`): PayMongo/Xendit = one connector + `PAYMENT_PROVIDER`. Fake webhooks rejected; double/mismatched payments flagged to the cashier; payment links expire after 30 min.
 
 ## Next up — must fix before real use 🔴
 1. **Deploy the updated `firestore.rules`** — `firebase deploy --only firestore:rules`. Until then, phones can still write orders directly (the old rules).
 2. **Change the demo account passwords** (Admin → Staff → Change my password) or deactivate the demo accounts, and add your real team.
 4. **Set a real `NEXTAUTH_SECRET`** — code falls back to a public dev secret.
-6. **Online payment is still simulated.** QR Ph / card mark the order paid without money moving. Connect PayMongo: `/api/orders/[id]/pay` creates the PayMongo checkout and a verified webhook marks the order paid. Server-side prices are already done.
+6. **Connect a real payment provider.** The flow is built and tested with the Practice provider (no real money). When a PayMongo / Xendit / HitPay account is approved: write its connector in `lib/server/payments/` (create checkout + verify webhook signature), set `PAYMENT_PROVIDER`, and point its webhook at `https://<site>/api/payments/webhook/<provider>`.
 6b. **Hosting needs the server key**: set `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or base64 of it) in Vercel. Locally it reads `service-account.json` (git-ignored).
 
 ## Next up — correctness 🟠

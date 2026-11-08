@@ -11,6 +11,7 @@
 import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore'
 import type { CartItem, MenuItem } from '@/lib/data'
 import { orderTotals, round2, DEFAULT_TAX_RATE, DEFAULT_SERVICE_FEE } from '@/lib/pricing'
+import { startOnlinePayment } from './payments'
 
 export class OrderError extends Error {
   constructor(message: string, readonly status = 400) { super(message) }
@@ -167,7 +168,7 @@ export async function createCustomerOrder(db: Firestore, uid: string, body: Reco
 
 // ─── Check out (after the cashier accepts) ─────────────────────────────────
 
-export async function payCustomerOrder(db: Firestore, uid: string, orderId: string, body: Record<string, unknown>) {
+export async function payCustomerOrder(db: Firestore, uid: string, orderId: string, body: Record<string, unknown>, origin: string) {
   if (!ORDER_ID.test(orderId)) throw new OrderError('Order not found.', 404)
   const method = body.paymentMethod as PaymentMethod
   if (method !== 'qrph' && method !== 'card' && method !== 'cash') throw new OrderError('Please choose how you’ll pay.')
@@ -175,7 +176,7 @@ export async function payCustomerOrder(db: Firestore, uid: string, orderId: stri
   if (!Number.isFinite(tipPercent) || tipPercent < 0 || tipPercent > MAX_TIP_PERCENT) throw new OrderError('Please choose a tip from the list.')
   const lines = parseLines(body.items)
 
-  return db.runTransaction(async tx => {
+  const result = await db.runTransaction(async tx => {
     const ref = db.collection('orders').doc(orderId)
     const snap = await tx.get(ref)
     if (!snap.exists || snap.get('customerUid') !== uid) throw new OrderError('Order not found.', 404)
@@ -221,15 +222,29 @@ export async function payCustomerOrder(db: Firestore, uid: string, orderId: stri
       return { status: 'pay-at-counter' as const, grandTotal: totals.total }
     }
 
-    // QR Ph / card. PAYMENT IS STILL SIMULATED: when a gateway (PayMongo) is connected,
-    // this step creates its checkout instead, and only the gateway's verified webhook
-    // marks the order paid.
+    // QR Ph / card: lock in what's owed. It is NOT paid yet — only the payment
+    // provider's verified webhook can mark it paid (lib/server/payments).
     const totals = orderTotals(subtotal, settings, { tipPercent })
     tx.update(ref, {
-      items, total: subtotal, paymentStatus: 'paid', paymentMethod: method, payAtCounter: false,
-      tipAmount: totals.tip, grandTotal: totals.total, paidAt: now, status: 'preparing',
-      priceSource: 'server', updatedAt: now,
+      items, total: subtotal, paymentMethod: method, payAtCounter: false,
+      tipAmount: totals.tip, grandTotal: totals.total, priceSource: 'server', updatedAt: now,
     })
-    return { status: 'paid' as const, grandTotal: totals.total }
+    return {
+      status: 'online' as const, grandTotal: totals.total, method,
+      tableNumber: Number(order.tableNumber), restaurantName: String(settingsSnap.get('restaurantName') ?? 'Restaurant'),
+    }
   })
+
+  if (result.status !== 'online') return result
+  // Talk to the provider outside the transaction (network calls must not be retried by it)
+  try {
+    const { checkoutUrl, practice } = await startOnlinePayment(db, {
+      orderId, tableNumber: result.tableNumber, amount: result.grandTotal,
+      method: result.method, origin, restaurantName: result.restaurantName,
+    })
+    return { status: 'redirect' as const, grandTotal: result.grandTotal, checkoutUrl, practice }
+  } catch (e) {
+    console.error('[payCustomerOrder] provider error', e)
+    throw new OrderError('Online payment isn’t available right now. Please try again, or choose Cash and pay at the counter.', 502)
+  }
 }

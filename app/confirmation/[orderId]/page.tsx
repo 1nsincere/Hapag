@@ -34,6 +34,17 @@ export default function ConfirmationPage() {
   }
 
   const isPaid = order.paymentStatus === 'paid'
+  // Back from the payment page; the provider's confirmation usually lands within seconds
+  if (!isPaid && order.paymentSessionId && !order.payAtCounter && !order.paymentIssue) {
+    return (
+      <MessageScreen
+        icon="hourglass_top"
+        title="Confirming your payment"
+        body="This usually takes a few seconds. Please keep this page open — it updates by itself."
+        action={<Link href={`/checkout/${order.id}`} className="hp-btn hp-btn-ghost">Back to checkout</Link>}
+      />
+    )
+  }
   const tip = order.tipAmount ?? 0
   const totalPaid = order.grandTotal ?? order.total
   const extras = Math.max(0, totalPaid - order.total - tip) // tax + service fee

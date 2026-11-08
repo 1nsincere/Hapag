@@ -93,4 +93,6 @@ Each restaurant gets its own colour on the customer screens.
 - **No double orders.** If the Wi-Fi drops while sending, the phone retries safely, and the same order is never created twice.
 - **Stock is checked.** The server refuses more plates than are left, including dishes added at checkout. Removed dishes go back into stock.
 - **Cash = pay at the counter.** If a guest picks Cash, the order is not marked paid. The cashier gets a blue "paying cash at the counter" alert, and the order goes to the kitchen after **Process Payment**.
-- **Online payment (QR Ph / card) is still a demo** until a payment provider (PayMongo) is connected.
+- **Online payment (QR Ph / card) works like a real gateway.** The guest is sent to a payment page and pays there. The order is marked paid only when the payment provider sends a signed "payment received" message for the exact amount. Fake messages are rejected.
+- **For now the payment page is the Practice provider** (yellow "Practice payment" banner, no real money). When the restaurant's PayMongo / Xendit account is ready, it replaces that page. Nothing else changes for staff.
+- **If money arrives but doesn't match the order** (for example, the guest changed the order after paying started, or paid twice), the order shows a red note on the cashier screen to check with the guest.
