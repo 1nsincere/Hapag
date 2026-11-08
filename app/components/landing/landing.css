@@ -357,3 +357,55 @@ html:has(.lp) body { background: #0F2B1F; }
 @keyframes lpEq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
 @media (max-width: 520px) { .lp-sound { padding: 0 10px; font-size: 0; gap: 0; } .lp-sound-bars { margin: 0; } }
 @media (prefers-reduced-motion: reduce) { .lp-sound.is-on .lp-sound-bars i { animation: none; height: 8px; } }
+
+/* ═══ Intro: printer prints ticket #0001, stamp, curtain lifts (~2.5s) ═══ */
+html.lp-lock, html.lp-lock body { overflow: hidden; }
+.lp-intro {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  background-color: var(--leaf);
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.022) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.022) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.022) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.022) 75%);
+  background-size: 28px 28px; background-position: 0 0, 14px 14px;
+  cursor: pointer;
+  animation: lpIntroUp .8s cubic-bezier(.76, 0, .24, 1) 2.25s forwards;  /* also leaves without JS */
+}
+.lp-intro::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 18px;
+  background-image:
+    linear-gradient(45deg, rgba(20,23,15,.28) 25%, transparent 25%, transparent 75%, rgba(20,23,15,.28) 75%),
+    linear-gradient(45deg, rgba(20,23,15,.28) 25%, transparent 25%, transparent 75%, rgba(20,23,15,.28) 75%),
+    repeating-linear-gradient(90deg, var(--mango) 0 18px, var(--achuete) 18px 36px, #E8DDBE 36px 54px, var(--leaf-3) 54px 72px);
+  background-size: 9px 9px, 9px 9px, auto; background-position: 0 0, 4.5px 4.5px, 0 0; }
+.lp-intro.is-skipping { animation: lpIntroSkip .5s cubic-bezier(.76, 0, .24, 1) forwards; }
+@keyframes lpIntroSkip { to { transform: translateY(-100%); visibility: hidden; } }
+@keyframes lpIntroUp { to { transform: translateY(-100%); visibility: hidden; } }
+
+.lp-intro-printer { position: relative; width: min(290px, 80vw); filter: drop-shadow(0 26px 36px rgba(0,0,0,.5)); animation: lpRise .6s var(--ease) both; }
+.lp-intro-ticket { position: relative; width: 100%; transform: none; font-size: 13px; padding: 16px 16px 20px; animation: lpPrint 1.15s cubic-bezier(.3, .7, .3, 1) .3s both; }
+.lp-intro-stamp {
+  position: absolute; right: 14px; bottom: 44px; padding: 5px 11px; border: 3px solid var(--achuete); border-radius: 4px;
+  color: var(--achuete); font: 600 17px/1 var(--mono); letter-spacing: .14em; background: rgba(242,241,234,.6);
+  opacity: 0; transform: rotate(-9deg) scale(2.4);
+  animation: lpStamp .32s cubic-bezier(.2, .9, .3, 1.35) 1.55s forwards;
+}
+@keyframes lpStamp { to { opacity: 1; transform: rotate(-9deg) scale(1); } }
+.lp-intro-caption { margin: 0; font: 400 13px/1 var(--mono); letter-spacing: .06em; color: var(--on-leaf-3); animation: lpRise .6s var(--ease) .2s both; }
+.lp-intro-skip {
+  position: absolute; right: max(24px, env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--leaf-line); background: transparent;
+  color: var(--on-leaf-2); font: 500 12px/1 var(--mono); cursor: pointer;
+}
+.lp-intro-skip:hover { color: var(--on-leaf); border-color: var(--on-leaf-2); }
+@keyframes lpRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* Hero rises in as the curtain lifts (sooner if skipped) */
+.lp-hero-copy > *, .lp-hero-device { animation: lpRise .8s var(--ease) both; animation-delay: calc(2.55s + var(--i, 0) * 90ms); }
+.lp-hero-copy > :nth-child(1) { --i: 0; } .lp-hero-copy > :nth-child(2) { --i: 1; } .lp-hero-copy > :nth-child(3) { --i: 2; }
+.lp-hero-copy > :nth-child(4) { --i: 3; } .lp-hero-copy > :nth-child(5) { --i: 4; } .lp-hero-device { --i: 2; }
+.lp.intro-skipped .lp-hero-copy > *, .lp.intro-skipped .lp-hero-device { animation-delay: calc(.35s + var(--i, 0) * 90ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-intro { display: none; }
+  .lp-hero-copy > *, .lp-hero-device { animation: none !important; }
+}

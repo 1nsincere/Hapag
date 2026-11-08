@@ -80,6 +80,43 @@ export default function Landing({ guestPath }: { guestPath: string }) {
   useReveal(root)
   const [scrolled, setScrolled] = useState(false)
   const origin = useSyncExternalStore(noopSubscribe, () => window.location.origin, () => '')
+  // Intro: 'on' while it plays, 'off' once gone. `skipped` stays true so the hero doesn't wait.
+  const [intro, setIntro] = useState<'on' | 'off'>('on')
+  const [skipped, setSkipped] = useState(false)
+
+  // Always start at the very top on load / refresh (also ignores #anchors in the address)
+  useEffect(() => {
+    const prev = history.scrollRestoration
+    history.scrollRestoration = 'manual'
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search)
+    window.scrollTo(0, 0)
+    return () => { history.scrollRestoration = prev }
+  }, [])
+
+  // Intro timeline (the animation itself is CSS); page scroll is locked while it plays
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const html = document.documentElement
+    if (!reduce) html.classList.add('lp-lock')
+    const sfx = setTimeout(() => printer(), 250)
+    const done = setTimeout(() => setIntro('off'), reduce ? 0 : 3050)
+    return () => { clearTimeout(sfx); clearTimeout(done); html.classList.remove('lp-lock') }
+  }, [])
+  useEffect(() => {
+    if (intro === 'off') document.documentElement.classList.remove('lp-lock')
+  }, [intro])
+
+  const skipIntro = useCallback(() => {
+    if (skipped) return
+    setSkipped(true)
+    setTimeout(() => setIntro('off'), 520)
+  }, [skipped])
+  useEffect(() => {
+    if (intro === 'off') return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); skipIntro() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [intro, skipIntro])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -89,7 +126,8 @@ export default function Landing({ guestPath }: { guestPath: string }) {
   }, [])
 
   return (
-    <div ref={root} className={`lp ${lpSans.variable} ${lpMono.variable}`}>
+    <div ref={root} className={`lp ${lpSans.variable} ${lpMono.variable}${skipped ? ' intro-skipped' : ''}`}>
+      {intro === 'on' && <Intro skipping={skipped} onSkip={skipIntro} />}
       <Nav scrolled={scrolled} />
       <Hero guestPath={guestPath} />
       <Weave />
@@ -120,6 +158,29 @@ function Nav({ scrolled }: { scrolled: boolean }) {
         <a href="#demo" className="lp-btn lp-btn-sm">Try the demo</a>
       </div>
     </header>
+  )
+}
+
+/** Opening: the kitchen printer prints Hapag's first ticket, it gets stamped, the curtain lifts. */
+function Intro({ skipping, onSkip }: { skipping: boolean; onSkip: () => void }) {
+  return (
+    <div className={`lp-intro${skipping ? ' is-skipping' : ''}`} onClick={onSkip}>
+      <div className="lp-intro-printer" aria-hidden="true">
+        <div className="lp-printer-body"><span className="lp-printer-led" /><span>HAPAG · KITCHEN</span></div>
+        <div className="lp-printer-slot">
+          <div className="lp-ticket lp-intro-ticket">
+            <div className="lp-ticket-row"><b>ORDER #0001</b><span>TABLE 01</span></div>
+            <div className="lp-ticket-line">1× QR ordering</div>
+            <div className="lp-ticket-line">1× Live kitchen screen</div>
+            <div className="lp-ticket-line">1× Floor plan, every floor</div>
+            <div className="lp-ticket-row lp-ticket-total"><span>TOTAL</span><b>SALAMAT</b></div>
+            <span className="lp-intro-stamp">KAIN NA</span>
+          </div>
+        </div>
+      </div>
+      <p className="lp-intro-caption" aria-live="polite">Preparing your table…</p>
+      <button type="button" className="lp-intro-skip" onClick={e => { e.stopPropagation(); onSkip() }}>Skip intro</button>
+    </div>
   )
 }
 
@@ -355,7 +416,8 @@ function BrandStudio() {
               </button>
             ))}
             <label className="lp-swatch lp-swatch-custom">
-              <input type="color" value={color} onChange={e => setColor(normalizeHex(e.target.value) ?? color)} aria-label="Pick any colour" />
+              {/* Some browsers add their own style to colour inputs before React loads */}
+              <input type="color" value={color} onChange={e => setColor(normalizeHex(e.target.value) ?? color)} aria-label="Pick any colour" suppressHydrationWarning />
               <i style={{ '--sw': color, '--swbg': color } as CSSProperties} />
               Any colour
             </label>
