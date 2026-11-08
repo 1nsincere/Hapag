@@ -30,10 +30,10 @@ const TIMELINE = [
 
 /** Tickets the hero printer cycles through */
 const PRINT_QUEUE = [
-  { head: 'TABLE 04', meta: '#A031 · 7:02 PM', lines: [['1× Kare-Kare', 'good for 3–4'], ['3× Garlic rice']], total: '₱1,430.00', stamp: 'NEW' },
-  { head: 'TABLE 02', meta: '#A032 · 7:04 PM', lines: [['1× Sizzling Sisig'], ['2× Calamansi juice']], total: '₱500.00', stamp: 'PAID · QR PH' },
-  { head: 'TAKEOUT', meta: '#A033 · 7:06 PM', lines: [['3× Pork BBQ'], ['3× Garlic rice']], total: '₱630.00', stamp: 'CASH' },
-  { head: 'TABLE 07', meta: '#A034 · 7:09 PM', lines: [['2× Halo-Halo'], ['1× Leche flan']], total: '₱510.00', stamp: 'NEW' },
+  { head: 'TABLE 04', meta: '#A031 · 7:02 PM', time: '7:02 PM', feed: 'Table 4 ordered Kare-Kare for 3–4', lines: [['1× Kare-Kare', 'good for 3–4'], ['3× Garlic rice']], total: '₱1,430.00', stamp: 'NEW' },
+  { head: 'TABLE 02', meta: '#A032 · 7:04 PM', time: '7:04 PM', feed: 'Table 2 paid ₱500.00 by QR Ph', lines: [['1× Sizzling Sisig'], ['2× Calamansi juice']], total: '₱500.00', stamp: 'PAID · QR PH' },
+  { head: 'TAKEOUT', meta: '#A033 · 7:06 PM', time: '7:06 PM', feed: 'Takeout #A033 paid in cash at the counter', lines: [['3× Pork BBQ'], ['3× Garlic rice']], total: '₱630.00', stamp: 'CASH' },
+  { head: 'TABLE 07', meta: '#A034 · 7:09 PM', time: '7:09 PM', feed: 'Table 7 ordered two Halo-Halo and a Leche flan', lines: [['2× Halo-Halo'], ['1× Leche flan']], total: '₱510.00', stamp: 'NEW' },
 ]
 
 /** The kitchen rail: minutes already waiting when the page opens */
@@ -43,6 +43,57 @@ const RAIL = [
   { table: 'Takeout', items: ['3× Pork BBQ', '1× Pancit Canton'], waited: 6 * 60 + 41, state: 'In queue' },
   { table: 'Table 8', items: ['1× Beef Mami', '1× Leche flan'], waited: 3 * 60 + 12, state: 'In queue' },
   { table: 'Table 1', items: ['1× Sinigang na Baboy', '4× Sago’t Gulaman'], waited: 48, state: 'New' },
+]
+
+/** Real excerpts from the codebase, shown in "Under the hood" */
+const CODE_TABS = [
+  {
+    id: 'pricing', label: 'Server pricing', file: 'lib/server/orders.ts',
+    note: 'The phone only says what it wants. Names, prices, tax and totals come from the menu and Settings.',
+    code: `// The phone sends dish ids and quantities. Never prices.
+const menu = await readMenu(db, tx, bases)
+const items = priceLines(lines, menu)        // names + prices from the menu
+for (const [base, qty] of qtyByBase(items)) {
+  const m = menu.get(base)!
+  if (m.available === false) throw new OrderError(soldOutMessage(m), 409)
+  if (typeof m.stock === 'number' && m.stock < qty)
+    throw new OrderError(soldOutMessage(m, m.stock), 409)
+}
+tx.set(ref, { items, total: subtotalOf(items), priceSource: 'server', ... })`,
+  },
+  {
+    id: 'payments', label: 'Payment webhook', file: 'lib/server/payments/practice.ts',
+    note: 'An order is marked paid only by a signed message from the payment provider, for the exact amount.',
+    code: `// HMAC-SHA256 over "timestamp.body", the scheme real providers use
+const [t, v1] = parseSignature(headers.get('x-hapag-signature'))
+if (Math.abs(Date.now() / 1000 - t) > MAX_AGE_SECONDS) throw new Error('stale')
+const expected = Buffer.from(sign(t, rawBody), 'hex')
+const given = Buffer.from(v1, 'hex')
+if (given.length !== expected.length || !timingSafeEqual(given, expected))
+  throw new Error('bad signature')            // fake "paid" messages stop here`,
+  },
+  {
+    id: 'rules', label: 'Security rules', file: 'firestore.rules',
+    note: 'The database itself refuses what a screen shouldn’t do, even if someone edits the page.',
+    code: `match /orders/{order} {
+  // Guests see only orders placed from their own phone
+  allow read: if isAdminOrCashier() || isKitchen() ||
+    (isAuthenticated() && resource.data.customerUid == request.auth.uid);
+  // Guests order and pay through the server, never directly
+  allow create: if isAdminOrCashier();
+  allow update: if isAdminOrCashier() || isKitchen();
+  allow delete: if isOwner();
+}`,
+  },
+] as const
+
+const STACK = ['Next.js 16', 'React 19', 'TypeScript', 'Firebase · Firestore & Auth', 'Tailwind CSS 4', 'Playwright']
+
+/** Dishes for the closing band (same photos as the demo menu) */
+const DISH_PHOTOS = [
+  { name: 'Kare-Kare', price: '₱485', src: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&q=70&auto=format&fit=crop' },
+  { name: 'Sizzling Sisig', price: '₱320', src: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=70&auto=format&fit=crop' },
+  { name: 'Halo-Halo', price: '₱195', src: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=600&q=70&auto=format&fit=crop' },
 ]
 
 const FEATURES = [
@@ -135,6 +186,7 @@ export default function Landing({ guestPath }: { guestPath: string }) {
       <Rush />
       <Features />
       <BrandStudio />
+      <UnderTheHood />
       <Demo guestPath={guestPath} origin={origin} />
       <KainNa />
       <Footer />
@@ -144,19 +196,50 @@ export default function Landing({ guestPath }: { guestPath: string }) {
 
 // ─── Sections ───────────────────────────────────────────────────────────────
 
+const NAV = [
+  { id: 'how', label: 'How it works' },
+  { id: 'features', label: 'Features' },
+  { id: 'brand', label: 'Your colours' },
+  { id: 'tech', label: 'Under the hood' },
+]
+
 function Nav({ scrolled }: { scrolled: boolean }) {
+  const [current, setCurrent] = useState('')
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const els = [...NAV.map(n => n.id), 'demo'].map(id => document.getElementById(id)).filter(Boolean) as HTMLElement[]
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) setCurrent(e.target.id) })
+    }, { rootMargin: '-40% 0px -55% 0px' })
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+  useEffect(() => {
+    if (!open) return
+    const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [open])
+
   return (
-    <header className={`lp-nav${scrolled ? ' is-scrolled' : ''}`}>
+    <header className={`lp-nav${scrolled || open ? ' is-scrolled' : ''}`}>
       <a href="#top" className="lp-logo" aria-label="Hapag, back to top">hapag</a>
       <nav aria-label="Sections" className="lp-nav-links">
-        <a href="#how">How it works</a>
-        <a href="#features">Features</a>
-        <a href="#brand">Your colours</a>
+        {NAV.map(n => <a key={n.id} href={`#${n.id}`} className={current === n.id ? 'is-current' : ''} aria-current={current === n.id ? 'true' : undefined}>{n.label}</a>)}
       </nav>
       <div className="lp-nav-actions">
         <SoundToggle />
-        <a href="#demo" className="lp-btn lp-btn-sm">Try the demo</a>
+        <a href="#demo" className="lp-btn lp-btn-sm lp-nav-cta">Try the demo</a>
+        <button type="button" className="lp-menu-btn" aria-expanded={open} aria-controls="lp-menu" onClick={() => setOpen(v => !v)}>
+          {open ? 'Close' : 'Menu'}
+        </button>
       </div>
+      {open && (
+        <nav id="lp-menu" className="lp-menu" aria-label="Sections">
+          {NAV.map(n => <a key={n.id} href={`#${n.id}`} onClick={() => setOpen(false)}>{n.label}</a>)}
+          <a href="#demo" className="lp-btn lp-btn-mango" onClick={() => setOpen(false)}>Try the live demo</a>
+        </nav>
+      )}
     </header>
   )
 }
@@ -195,8 +278,20 @@ function SoundToggle() {
 }
 
 function Hero({ guestPath }: { guestPath: string }) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = setInterval(() => { setN(v => v + 1); printer() }, 3800)
+    return () => clearInterval(t)
+  }, [])
+  const now = PRINT_QUEUE[n % PRINT_QUEUE.length]
   return (
     <section id="top" className="lp-hero">
+      <div className="lp-wrap lp-feed" aria-live="off">
+        <span className="lp-feed-live"><i aria-hidden="true" />Live orders</span>
+        <span key={n} className="lp-feed-item"><time>{now.time}</time>{now.feed}</span>
+        <span className="lp-feed-meta">Demo restaurant · resets nightly</span>
+      </div>
       <div className="lp-wrap lp-hero-inner">
         <div className="lp-hero-copy">
           <p className="lp-def"><b>ha·pag</b> <i>(n.)</i> dining table</p>
@@ -206,8 +301,8 @@ function Hero({ guestPath }: { guestPath: string }) {
             moment it’s sent. Nothing to install.
           </p>
           <div className="lp-hero-cta">
-            <a href="#demo" className="lp-btn lp-btn-mango">Try the live demo</a>
-            <a href="#how" className="lp-btn lp-btn-line">See how an order moves</a>
+            <a href="#demo" className="lp-btn lp-btn-mango">Try the live demo <span className="lp-arrow" aria-hidden="true">→</span></a>
+            <a href="#how" className="lp-btn lp-btn-line">See how an order moves <span className="lp-arrow" aria-hidden="true">↓</span></a>
           </div>
           <ul className="lp-hero-facts">
             <li><span>Setup</span>Print the table QR codes</li>
@@ -225,7 +320,7 @@ function Hero({ guestPath }: { guestPath: string }) {
           </div>
           <p className="lp-phone-hint">This phone is live. Tap “View the menu”.</p>
 
-          <TicketPrinter />
+          <TicketPrinter n={n} />
           <div className="lp-ticket lp-ticket-b" aria-hidden="true">
             <div className="lp-ticket-row"><b>TABLE 06</b><span>7:21 PM</span></div>
             <div className="lp-ticket-line">Ready to serve</div>
@@ -237,13 +332,7 @@ function Hero({ guestPath }: { guestPath: string }) {
 }
 
 /** A receipt printer that keeps printing the next order */
-function TicketPrinter() {
-  const [n, setN] = useState(0)
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const t = setInterval(() => { setN(v => v + 1); printer() }, 3800)
-    return () => clearInterval(t)
-  }, [])
+function TicketPrinter({ n }: { n: number }) {
   const tk = PRINT_QUEUE[n % PRINT_QUEUE.length]
   return (
     <div className="lp-printer" aria-hidden="true">
@@ -468,6 +557,46 @@ function BrandStudio() {
   )
 }
 
+function UnderTheHood() {
+  const [tab, setTab] = useState<(typeof CODE_TABS)[number]['id']>('pricing')
+  const t = CODE_TABS.find(c => c.id === tab)!
+  return (
+    <section id="tech" className="lp-tech">
+      <div className="lp-wrap lp-tech-grid">
+        <div>
+          <p className="lp-label">Under the hood</p>
+          <h2 className="lp-h2">Built like it’ll handle real money</h2>
+          <p className="lp-lead">
+            The screens are the easy part. Most of the work went into the things you don’t see: prices the phone
+            can’t change, payments that have to prove themselves, and a database that says no.
+          </p>
+          <dl className="lp-tech-stats">
+            <div><dt>42</dt><dd>step click-through test, guest to kitchen to owner</dd></div>
+            <div><dt>60</dt><dd>security checks against the live database rules</dd></div>
+            <div><dt>0</dt><dd>prices trusted from the guest’s phone</dd></div>
+          </dl>
+          <ul className="lp-stack" aria-label="Built with">{STACK.map(x => <li key={x}>{x}</li>)}</ul>
+        </div>
+
+        <div className="lp-code">
+          <div className="lp-code-tabs" role="tablist" aria-label="Code excerpts">
+            {CODE_TABS.map(c => (
+              <button key={c.id} type="button" role="tab" id={`tab-${c.id}`} aria-selected={tab === c.id} aria-controls="lp-code-panel" className={tab === c.id ? 'is-on' : ''} onClick={() => { setTab(c.id); tick() }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="lp-code-panel" id="lp-code-panel" role="tabpanel" aria-labelledby={`tab-${t.id}`}>
+            <div className="lp-code-file"><span>{t.file}</span><span>{t.id === 'rules' ? 'Firestore rules' : 'TypeScript'} · excerpt</span></div>
+            <pre key={t.id}><code>{t.code}</code></pre>
+            <p className="lp-code-note">{t.note}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Demo({ guestPath, origin }: { guestPath: string; origin: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -528,11 +657,20 @@ function KainNa() {
     <section className="lp-kain" aria-labelledby="kain-title">
       <Weave />
       <div className="lp-wrap lp-kain-inner">
-        <div>
+        <div className="lp-kain-copy">
           <h2 className="lp-kain-title" id="kain-title">Kain na.</h2>
           <p className="lp-kain-sub"><i>(Tagalog)</i> Let’s eat. Your guests are ready to order.</p>
+          <a href="#demo" className="lp-btn lp-btn-ink">Try the live demo <span className="lp-arrow" aria-hidden="true">→</span></a>
         </div>
-        <a href="#demo" className="lp-btn lp-btn-ink">Try the live demo</a>
+        <ul className="lp-dishes" aria-label="Dishes from the demo menu">
+          {DISH_PHOTOS.map(d => (
+            <li key={d.name} className="lp-dish-card">
+              {/* eslint-disable-next-line @next/next/no-img-element -- remote demo photo, plain img keeps config simple */}
+              <img src={d.src} alt={d.name} loading="lazy" width={300} height={300} />
+              <span><b>{d.name}</b>{d.price}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   )
@@ -542,8 +680,25 @@ function Footer() {
   const year = new Date().getFullYear()
   return (
     <footer className="lp-footer">
+      <div className="lp-wrap lp-footer-cols">
+        <div>
+          <span className="lp-logo">hapag</span>
+          <p>QR ordering and kitchen screens for Filipino restaurants. A portfolio project with a working demo.</p>
+        </div>
+        <nav aria-label="Footer">
+          <h3>Explore</h3>
+          {NAV.map(n => <a key={n.id} href={`#${n.id}`}>{n.label}</a>)}
+        </nav>
+        <nav aria-label="Demo">
+          <h3>Try it</h3>
+          <a href="#demo">Guest menu</a>
+          <a href="#demo">Cashier screen</a>
+          <a href="#demo">Kitchen screen</a>
+          <a href="#demo">Owner dashboard</a>
+        </nav>
+      </div>
       <div className="lp-wrap lp-footer-row">
-        <span className="lp-logo">hapag</span>
+        <span>Hapag · Filipino for “dining table”</span>
         <span>
           Designed and built by{' '}
           {SITE.authorUrl ? <a href={SITE.authorUrl} target="_blank" rel="noreferrer">{SITE.author}</a> : SITE.author}
