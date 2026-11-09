@@ -3,8 +3,8 @@
  *
  *  ensureDemoReady()  first visit to the landing page: creates the demo staff
  *                     accounts, and the demo restaurant if the database is empty
- *  resetDemo()        nightly (Vercel Cron → /api/demo/reset): removes everything
- *                     tagged demo: true and re-creates the demo restaurant
+ *  resetDemo()        nightly (Vercel Cron → /api/demo/reset): clears visitors' orders,
+ *                     restores sample orders, seating and stock; keeps the owner's edits
  *  demoSignInToken()  one-click "enter as Cashier" etc. — no passwords involved
  *
  * Only anything tagged demo: true is ever deleted.
@@ -141,9 +141,117 @@ async function resetSettings(db: Firestore, overwriteLook: boolean) {
   if (!snap.exists) {
     await ref.set({ ...demoData.settings, baseUrl: '', brandColor: DEFAULT_BRAND_COLOR, themeMode: 'light' })
   } else if (overwriteLook) {
-    // Visitors may change the brand colour during the day — put it back
-    await ref.update({ brandColor: DEFAULT_BRAND_COLOR, themeMode: 'light' })
+    // Visitors may change the brand colour during the day — put back the look the
+    // owner chose (saved by Admin → Settings on the demo site), or the default.
+    const home = snap.get('demoHomeLook') as { brandColor?: string; themeMode?: string } | undefined
+    await ref.update({ brandColor: home?.brandColor || DEFAULT_BRAND_COLOR, themeMode: home?.themeMode || 'light' })
   }
+}
+
+/**
+ * Nightly tidy-up that keeps the owner's own edits:
+ *  • clears visitors' orders, staff calls and payment attempts (everything tagged demo)
+ *  • puts the sample orders back and resets table seating + stock levels
+ *  • recreates demo dishes / tables / floors only if they were deleted
+ * Names, prices, photos, table positions and floor drawings the owner changed stay.
+ */
+async function refreshDemoRestaurant(db: Firestore) {
+  for (const col of ['orders', 'serviceRequests', 'paymentSessions']) await deleteTagged(db, col)
+  const now = Date.now()
+  const batch = db.batch()
+
+  // Menu: restore stock/availability on demo dishes; recreate any that were deleted
+  const menuDocs = (await db.collection('menu').get()).docs
+  const byName = new Map(menuDocs.map(d => [String(d.get('name')), d]))
+  const menuByName: Record<string, { id: string; price: number; variants?: { name: string; price: number }[]; image?: string }> = {}
+  for (const item of MENU) {
+    const found = byName.get(item.name)
+    if (found) {
+      if (found.get('demo') === true) {
+        batch.update(found.ref, { available: item.available ?? true, ...(typeof item.stock === 'number' ? { stock: item.stock } : {}) })
+      }
+      menuByName[item.name] = { id: found.id, price: Number(found.get('price')), variants: found.get('variants'), image: found.get('image') }
+    } else {
+      const ref = db.collection('menu').doc()
+      const data: Record<string, unknown> = { available: true, tags: [], ...item, demo: true }
+      if (data.stock === undefined) delete data.stock
+      batch.set(ref, data)
+      menuByName[item.name] = { id: ref.id, price: item.price, variants: item.variants, image: item.image }
+    }
+  }
+
+  // Floors: only if there are none at all
+  let floors = (await db.collection('floors').get()).docs.map(d => ({ id: d.id, name: String(d.get('name')), order: Number(d.get('order') ?? 0) }))
+  if (!floors.length) {
+    floors = FLOORS.map((f, i) => {
+      const ref = db.collection('floors').doc()
+      batch.set(ref, {
+        name: f.name, order: i, width: f.width, height: f.height,
+        elements: f.elements.map((e, j) => ({ id: `demo-${i}-${j}`, rotation: 0, ...e })),
+        createdAt: now, updatedAt: now, demo: true,
+      })
+      return { id: ref.id, name: f.name, order: i }
+    })
+  }
+  floors.sort((a, b) => a.order - b.order)
+  const floorFor = (i: number) => (floors.find(f => f.name === FLOORS[i]?.name) ?? floors[0]).id
+
+  // Tables: free every demo table; recreate missing demo table numbers
+  const tableDocs = (await db.collection('tables').get()).docs
+  const tableByNumber: Record<number, DocumentReference> = {}
+  for (const d of tableDocs) {
+    tableByNumber[Number(d.get('tableNumber'))] = d.ref
+    if (d.get('demo') === true) batch.update(d.ref, { status: 'available', currentOrderId: null, occupiedAt: null, updatedAt: now })
+  }
+  for (const t of TABLES) {
+    if (tableByNumber[t.n]) continue
+    const ref = db.collection('tables').doc()
+    tableByNumber[t.n] = ref
+    batch.set(ref, {
+      tableNumber: t.n, name: t.name, status: 'available', qrCode: `table-${t.n}`, capacity: t.capacity,
+      shape: t.shape, floorId: floorFor(t.floor), positionX: t.x, positionY: t.y, width: t.w, height: t.h, rotation: t.rotation ?? 0,
+      currentOrderId: null, occupiedAt: null, createdAt: now, updatedAt: now, demo: true,
+    })
+  }
+
+  // QR secrets stay the same (shared demo links keep working)
+  const have = new Set((await db.collection('tableSecrets').get()).docs.map(d => d.id))
+  for (const t of TABLES) {
+    if (!have.has(String(t.n))) batch.set(db.collection('tableSecrets').doc(String(t.n)), { token: randomBytes(10).toString('base64url').slice(0, 14), createdAt: now })
+  }
+
+  // Sample orders, priced from the menu as it is now (skips any whose dishes were renamed away)
+  const settings = await db.collection('settings').doc('general').get()
+  const taxRate = (parseFloat(String(settings.get('taxRate') ?? demoData.settings.taxRate)) || 0) / 100
+  for (const o of ORDERS) {
+    const items = []
+    let ok = true
+    for (const [name, quantity, variantName] of o.items) {
+      const m = menuByName[String(name)]
+      if (!m) { ok = false; break }
+      const v = variantName ? m.variants?.find(x => x.name === variantName) : undefined
+      items.push({
+        id: v ? `${m.id}::${v.name}` : m.id, baseId: m.id, name: String(name), price: v ? v.price : m.price, quantity: Number(quantity),
+        image: m.image && !String(m.image).startsWith('data:') ? m.image : '', ...(v ? { variantName: v.name } : {}),
+      })
+    }
+    if (!ok) continue
+    const total = items.reduce((s, i) => s + i.price * i.quantity, 0)
+    const created = now - o.ago * 60_000
+    const ref = db.collection('orders').doc()
+    batch.set(ref, {
+      tableNumber: o.table, items, total, status: o.status, orderType: o.takeout ? 'takeout' : 'dine-in',
+      paymentStatus: o.paid ? 'paid' : 'pending', priceSource: 'server',
+      ...(o.paid ? { paymentMethod: o.takeout ? 'cash' : 'qrph', tipAmount: 0, grandTotal: Math.round(total * (1 + taxRate) * 100) / 100, paidAt: created + 60_000 } : {}),
+      ...(o.note ? { specialInstructions: o.note } : {}),
+      createdAt: created, updatedAt: created + 120_000, demo: true,
+    })
+    const tableRef = tableByNumber[o.table]
+    if (o.table && tableRef && (o.status !== 'served' || o.ago < 60)) {
+      batch.update(tableRef, { status: 'occupied', currentOrderId: ref.id, occupiedAt: created, updatedAt: created })
+    }
+  }
+  await batch.commit()
 }
 
 /** Landing page calls this on every request; does real work only the first time. */
@@ -170,12 +278,12 @@ export async function ensureDemoReady() {
   await resetSettings(db, false)
 }
 
-/** Nightly: fresh demo restaurant, demo accounts repaired, brand colour back to default. */
+/** Nightly: visitors' data cleared, sample orders back, owner's edits kept, demo accounts repaired. */
 export async function resetDemo() {
   assertDemo()
   const db = adminDb()
   await ensureDemoAccounts(db)
-  await seedDemoRestaurant(db)
+  await refreshDemoRestaurant(db)
   await resetSettings(db, true)
   // Demo accounts get fresh random passwords (undoes any password a visitor set)
   const auth = adminAuth()

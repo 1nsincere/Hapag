@@ -81,17 +81,18 @@ online payments and Hapag Complete come after the pilot.
 Step-by-step: [docs/DEPLOY-DEMO.md](docs/DEPLOY-DEMO.md)
 
 - [x] **Me** Demo mode + showcase landing page: one-click Guest/Cashier/Kitchen/Owner, demo accounts restricted by the rules, nightly reset (`NEXT_PUBLIC_DEMO_MODE=true`)
-- [ ] **You** Deploy the database rules (see 0.1). **Required:** the demo restrictions live in the rules.
-- [ ] **You** Deploy on Vercel with the variables in docs/DEPLOY-DEMO.md (incl. `NEXT_PUBLIC_DEMO_MODE` and `CRON_SECRET`)
+- [x] **You** Deploy the database rules (see 0.1). *(Done, verified 2026-11-09: demo accounts are refused by the database.)*
+- [x] **You** Deploy on Vercel: live at https://hapag-ph.vercel.app
 - [ ] **You** Edit `lib/site.ts` (your name / links)
-- [ ] **You** *(recommended)* A separate Firebase project just for the demo, so visitors never share data with your own testing
+- [x] **Me** Real owner can edit on the demo site; nightly reset keeps the owner's edits (only visitors' data is cleared)
+- [ ] **You** *(recommended)* A separate Firebase project just for the demo. Steps: docs/DEPLOY-DEMO.md → "Give the demo its own database" (about 15 min)
 - [x] ~~Clear the saved QR address~~ (the demo clears home-network addresses itself)
 
 ---
 
 ## Phase 0: Owner tasks (no code; start any time)
 
-- [ ] **0.1 You:** Deploy the database rules. Until then, phones can still write orders directly.
+- [x] **0.1 You:** Deploy the database rules. Until then, phones can still write orders directly.
   ```
   cd "C:\Users\acegr\Desktop\Qr_Ordering System\qr_system"
   npx firebase-tools deploy --only firestore:rules

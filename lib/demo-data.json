@@ -1,7 +1,7 @@
 {
   "_note": "Demo restaurant shared by scripts/seed-demo.mjs and lib/server/demo.ts. Floors are 1200x800 units; table floor = index into floors.",
   "settings": {
-    "restaurantName": "Wawo's House",
+    "restaurantName": "Hapag Kitchen",
     "stationName": "Main Line",
     "taxRate": "12",
     "serviceFee": "0"

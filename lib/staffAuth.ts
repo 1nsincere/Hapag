@@ -27,7 +27,7 @@ export async function verifyFirebaseIdToken(idToken: string) {
   }
 }
 
-export interface StaffProfile { name: string; role: UserRole; active: boolean }
+export interface StaffProfile { name: string; role: UserRole; active: boolean; demo: boolean }
 
 /** Reads staff/{uid} as the signed-in user. null = no profile (or not readable). */
 export async function fetchStaffProfile(uid: string, idToken: string): Promise<StaffProfile | null> {
@@ -39,5 +39,5 @@ export async function fetchStaffProfile(uid: string, idToken: string): Promise<S
   const f = doc.fields ?? {}
   const role = f.role?.stringValue as UserRole | undefined
   if (role !== 'admin' && role !== 'cashier' && role !== 'kitchen') return null
-  return { name: f.name?.stringValue ?? '', role, active: f.active?.booleanValue !== false }
+  return { name: f.name?.stringValue ?? '', role, active: f.active?.booleanValue !== false, demo: f.demo?.booleanValue === true }
 }

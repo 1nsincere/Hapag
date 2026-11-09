@@ -18,6 +18,15 @@ export const DEMO_ACCOUNTS: Record<DemoRole, { uid: string; email: string; name:
   kitchen: { uid: 'demo-kitchen', email: 'kitchen@demo.hapag.app', name: 'Demo Kitchen', path: '/kitchen' },
 }
 
+/**
+ * Is the signed-in person a public demo account? Set by DemoChrome from the
+ * login session. Until the session is known, the demo site assumes "yes" (safe).
+ * The real owner logging in on the demo site gets full editing.
+ */
+let demoUser = DEMO_MODE
+export const setDemoUser = (v: boolean) => { demoUser = DEMO_MODE && v }
+export const isDemoUser = () => demoUser
+
 /** Extra fields for anything created in demo mode, so the nightly reset can find it */
 export const demoTag = () => (DEMO_MODE ? { demo: true } : {})
 
@@ -29,7 +38,7 @@ export const DEMO_BLOCKED_EVENT = 'hapag:demo-blocked'
  * returns true — the caller then skips the action. Outside demo mode: false.
  */
 export function demoBlocked(what: string): boolean {
-  if (!DEMO_MODE) return false
+  if (!demoUser) return false
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(DEMO_BLOCKED_EVENT, { detail: what }))
   return true
 }

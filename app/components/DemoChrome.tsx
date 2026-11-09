@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { DEMO_BLOCKED_EVENT, DEMO_MODE } from '@/lib/demo'
+import { useSession } from 'next-auth/react'
+import { DEMO_BLOCKED_EVENT, DEMO_MODE, setDemoUser } from '@/lib/demo'
 
 export default function DemoChrome() {
   const pathname = usePathname()
@@ -25,7 +26,12 @@ export default function DemoChrome() {
     return () => { window.removeEventListener(DEMO_BLOCKED_EVENT, onBlocked); clearTimeout(timer) }
   }, [])
 
-  const staffScreen = DEMO_MODE && /^\/(admin|cashier|kitchen|pos|dashboard)/.test(pathname ?? '')
+  const { data: session, status } = useSession()
+  // Real owner signed in on the demo site → full editing, no demo badge
+  const isDemoAccount = status !== 'authenticated' || session?.user?.demo === true ||
+    (session?.user?.email ?? '').endsWith('@demo.hapag.app')   // sessions issued before the flag existed
+  useEffect(() => { setDemoUser(isDemoAccount) }, [isDemoAccount])
+  const staffScreen = DEMO_MODE && isDemoAccount && /^\/(admin|cashier|kitchen|pos|dashboard)/.test(pathname ?? '')
   // Phones: the badge is a strip along the top; make room for it instead of covering the header
   useEffect(() => {
     document.documentElement.classList.toggle('demo-strip', staffScreen)

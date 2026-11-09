@@ -44,7 +44,7 @@ export const authOptions: NextAuthOptions = {
 
           if (profile) {
             if (!profile.active) return null // deactivated by the owner
-            return { id: uid, email, name: profile.name || email, role: profile.role }
+            return { id: uid, email, name: profile.name || email, role: profile.role, demo: profile.demo }
           }
           // No staff profile = not staff. (The owner account is created with
           // `npm run create-owner`; everyone else in Admin → Staff.)
@@ -67,12 +67,12 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     /** Persist the user's role inside the JWT token */
     async jwt({ token, user }) {
-      if (user) token.role = user.role
+      if (user) { token.role = user.role; token.demo = user.demo === true }
       return token
     },
     /** Expose the role on the client-side session object */
     async session({ session, token }) {
-      if (session.user) session.user.role = token.role
+      if (session.user) { session.user.role = token.role; session.user.demo = token.demo === true }
       return session
     },
   },

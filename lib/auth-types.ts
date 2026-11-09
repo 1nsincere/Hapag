@@ -13,16 +13,20 @@ declare module 'next-auth' {
       email?: string | null
       image?: string | null
       role: UserRole
+      /** true only for the public demo accounts (portfolio site) */
+      demo?: boolean
     }
   }
 
   interface User {
     role: UserRole
+    demo?: boolean
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     role: UserRole
+    demo?: boolean
   }
 }

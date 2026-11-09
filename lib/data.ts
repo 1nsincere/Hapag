@@ -18,7 +18,7 @@ import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { orderSafeImage } from './imageCompress';
 import { DEFAULT_TAX_RATE, DEFAULT_SERVICE_FEE } from './pricing';
-import { DEMO_MODE, demoBlocked, demoTag } from './demo';
+import { DEMO_MODE, demoBlocked, demoTag, isDemoUser } from './demo';
 
 /** Strip embedded (uploaded) photos from order items — they live on the menu item */
 const slimItems = (items: CartItem[]) => items.map(i => ({ ...i, image: orderSafeImage(i.image) }))
@@ -357,7 +357,7 @@ export function listenToTableTokens(callback: (tokens: Record<number, string>) =
  * QR codes already printed for that table.
  */
 export async function ensureTableTokens(tableNumbers: number[], existing: Record<number, string>) {
-  if (DEMO_MODE) return // demo QR codes are created by the server
+  if (isDemoUser()) return // demo visitors: QR codes are created by the server
   const missing = tableNumbers.filter(n => n > 0 && !existing[n])
   for (const n of missing) {
     const ref = doc(db, SECRETS_COL, String(n))
@@ -389,13 +389,16 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  if (DEMO_MODE) {
+  if (isDemoUser()) {
     // Demo visitors can try the brand look; the other settings stay as they are
     await updateDoc(doc(db, SETTINGS_COL, 'general'), { brandColor: settings.brandColor ?? '', themeMode: settings.themeMode ?? 'light' })
     demoBlocked('Changing settings other than the brand look')
     return
   }
-  await setDoc(doc(db, SETTINGS_COL, 'general'), settings)
+  // On the demo site, remember the owner's chosen look: the nightly reset restores it
+  // after visitors have played with the colours.
+  const homeLook = DEMO_MODE ? { demoHomeLook: { brandColor: settings.brandColor ?? '', themeMode: settings.themeMode ?? 'light' } } : {}
+  await setDoc(doc(db, SETTINGS_COL, 'general'), { ...settings, ...homeLook })
 }
 
 export function listenToSettings(callback: (settings: AppSettings) => void) {
@@ -442,7 +445,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function saveMenuItem(item: Partial<MenuItem>) {
-  if (DEMO_MODE) {
+  if (isDemoUser()) {
     // Demo: availability / stock toggles work; adding or rewriting dishes doesn't
     if (!item.id) { demoBlocked('Adding dishes'); return }
     const patch: Partial<MenuItem> = {}

@@ -90,3 +90,51 @@ for the demo avoids that.
 | Login goes in circles | `NEXTAUTH_URL` doesn't exactly match the site address; redeploy after fixing |
 | QR codes open a 192.168… address | Visit `/` once (the demo clears home-network addresses), or clear it in System Settings on a non-demo site |
 | Nightly reset doesn't run | `CRON_SECRET` missing. Vercel → Settings → Cron Jobs shows the runs |
+
+---
+
+## Editing the demo yourself
+
+Log in on the demo site at `/login` with your **real owner account** (not the one-click demo buttons).
+You get full editing: tables, floor plan, menu, staff, settings. Only the public demo accounts are restricted.
+
+The nightly reset **keeps your edits**. It only:
+- clears visitors' orders, staff calls and payment attempts
+- puts the sample orders back, frees the demo tables, restores demo stock levels
+- recreates demo dishes, tables or floors if someone deleted them
+- sets the brand colour back to the one **you** last saved in Admin → System Settings
+
+## Give the demo its own database (recommended)
+
+Right now the demo shares your Firebase project, so visitors' orders appear on your screens too.
+Moving it to a separate project keeps your own testing (and later, your pilot restaurant) private.
+About 15 minutes:
+
+1. **Create the project:** console.firebase.google.com → **Add project** → name it `hapag-demo` → turn off Google Analytics → **Create**.
+   Note the **Project ID** it shows (for example `hapag-demo-1a2b3`).
+2. **Database:** Build → **Firestore Database** → Create database → **Production mode** → location **asia-southeast1 (Singapore)** → Enable.
+3. **Sign-in:** Build → **Authentication** → Get started → Sign-in method → enable **Anonymous** and **Email/Password**.
+4. **Web settings:** gear icon → Project settings → General → Your apps → **</>** (Web) → name `hapag-demo-web` → Register.
+   Keep the six `firebaseConfig` values on screen for step 7.
+5. **Server key:** Project settings → **Service accounts** → **Generate new private key**.
+   Rename the file to `service-account-demo.json` and put it in the `qr_system` folder (it's git-ignored).
+6. **Rules + indexes** for the new project (use your Project ID):
+   ```powershell
+   cd "C:\Users\acegr\Desktop\Qr_Ordering System\qr_system"
+   npx firebase-tools deploy --only firestore --project hapag-demo-1a2b3
+   ```
+7. **Vercel** → hapag-ph → Settings → Environment Variables:
+   - replace the six `NEXT_PUBLIC_FIREBASE_…` values with the new project's values (Config)
+   - replace `FIREBASE_SERVICE_ACCOUNT` (Secret) with the new key:
+     ```powershell
+     [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\Users\acegr\Desktop\Qr_Ordering System\qr_system\service-account-demo.json")) | Set-Clipboard
+     ```
+   - keep everything else, then **Deployments → ⋯ → Redeploy**
+8. **New project** → Authentication → Settings → **Authorized domains** → add `hapag-ph.vercel.app`.
+9. **Open the site.** The first visit builds the demo restaurant ("Hapag Kitchen") and the demo accounts by itself (about 10 seconds).
+10. **Tidy your own project** (optional): your computer still uses your own project (`.env.local`), so run
+    ```powershell
+    npm run remove-demo-accounts
+    ```
+    to remove the three demo logins from it. Your menu, tables and orders are not touched.
+    Locally, use `npm run dev` (not `dev:demo`) from now on.
