@@ -41,7 +41,7 @@ const STAFF_FONT_URL =
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the theme boot script sets the brand colour on <html> before React loads
-    <html lang="en" className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${display.variable} ${body.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Apply the restaurant's cached brand theme before first paint (no colour flash) */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />

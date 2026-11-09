@@ -139,9 +139,14 @@ export default function Landing({ guestPath }: { guestPath: string }) {
   useEffect(() => {
     const prev = history.scrollRestoration
     history.scrollRestoration = 'manual'
-    if (location.hash) history.replaceState(null, '', location.pathname + location.search)
-    window.scrollTo(0, 0)
-    return () => { history.scrollRestoration = prev }
+    // Don't rewrite the address here: calling history.replaceState before Next's
+    // router is ready crashes it. Just go back to the top (again after the browser
+    // may have jumped to a #anchor).
+    const top = () => window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+    top()
+    const again = setTimeout(top, 60)
+    window.addEventListener('load', top, { once: true })
+    return () => { history.scrollRestoration = prev; clearTimeout(again); window.removeEventListener('load', top) }
   }, [])
 
   // Intro timeline (the animation itself is CSS); page scroll is locked while it plays

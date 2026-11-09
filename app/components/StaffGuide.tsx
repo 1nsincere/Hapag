@@ -6,6 +6,7 @@
  */
 
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { STAGES, TABLE_RULES, TONE_CLASSES, type Role } from '@/lib/orderFlow'
 
 type GuideRole = 'cashier' | 'kitchen' | 'admin'
@@ -37,8 +38,10 @@ export function StaffGuide({ open, onClose, role }: { open: boolean; onClose: ()
   if (!open) return null
   const mine = ROLE_OWNS[role]
 
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="How Hapag works">
+  // Rendered at the top of the page: a parent with a blur/transform (e.g. the admin
+  // sidebar) would otherwise trap this fixed panel inside its own narrow box.
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="How Hapag works">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl">
         <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-zinc-100 px-6 py-4 flex items-center justify-between z-10">
@@ -126,6 +129,7 @@ export function StaffGuide({ open, onClose, role }: { open: boolean; onClose: ()
           </section>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -626,3 +626,9 @@ html.lp-lock, html.lp-lock body { overflow: hidden; }
 .lp-jpanel { height: min(50vh, 500px); }
 .lp-journey-pin { padding-top: 92px; row-gap: 18px; }
 .lp-journey-head .lp-h2 { font-size: clamp(1.9rem, 3.2vw, 2.9rem); }
+
+/* next/image fill always needs a positioned parent */
+.lp-frame-img, .lp-feature-img, .lp-figure-img { position: relative; }
+
+/* The bar is always solid (it looks the same over the green hero), so it can never turn see-through over light sections */
+.lp-nav { background: rgba(15, 43, 31, .94); backdrop-filter: blur(10px); }
