@@ -38,7 +38,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 | Name | Value |
 |---|---|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` … `NEXT_PUBLIC_FIREBASE_APP_ID` (6) | copy from `.env.local` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` … `NEXT_PUBLIC_FIREBASE_APP_ID` (6) | the real value after `=` on that line in `.env.local` (paste the six whole lines at once; never the words in this table) |
 | `NEXTAUTH_SECRET` | from step 2 |
 | `FIREBASE_SERVICE_ACCOUNT` | paste from the clipboard (step 2) |
 | `CRON_SECRET` | from step 2 |
