@@ -13,7 +13,8 @@
     "test:e2e": "node scripts/test/e2e.cjs",
     "create-owner": "node scripts/create-owner.mjs",
     "dev:demo": "node scripts/dev-demo.mjs",
-    "remove-demo-accounts": "node scripts/remove-demo-accounts.mjs"
+    "remove-demo-accounts": "node scripts/remove-demo-accounts.mjs",
+    "make-icons": "node scripts/make-icons.cjs"
   },
   "dependencies": {
     "firebase": "^12.12.1",

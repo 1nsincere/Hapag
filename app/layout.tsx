@@ -24,6 +24,9 @@ const body = Manrope({
 export const metadata: Metadata = {
   title: 'Hapag — QR Ordering for Restaurants',
   description: 'Hapag — scan, order and pay from your table. Smart QR ordering and POS for restaurants.',
+  applicationName: 'Hapag',
+  // Installed on iPhone/iPad: full screen, Hapag name under the icon (icons come from app/icon.svg + app/apple-icon.png)
+  appleWebApp: { capable: true, title: 'Hapag', statusBarStyle: 'black-translucent' },
 }
 
 export const viewport: Viewport = {

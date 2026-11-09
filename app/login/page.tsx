@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ROLE_LANDING, UserRole } from '@/lib/auth'
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import HapagMark from '@/app/components/HapagMark'
+import { InstallAppButton } from '@/app/components/AppInstall'
 
 const isNetworkError = (err: unknown) => (err as { code?: string })?.code === 'auth/network-request-failed'
 
@@ -115,8 +117,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo & Header */}
         <div className="text-center mb-8 animate-fade-in">
-          <div className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-primary/30">
-            <span className="material-symbols-outlined text-white text-4xl">restaurant</span>
+          <div className="w-20 h-20 rounded-[22%] flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-black/20"
+               style={{ background: '#0F2B1F', color: '#F2B33D' }}>
+            <HapagMark size={56} />
           </div>
           <h1 className="text-3xl font-black text-on-surface tracking-tight">Staff Login</h1>
           <p className="text-on-surface-variant mt-2 text-sm">
@@ -219,6 +222,9 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* Install as an app (cashier tablet, kitchen screen, owner's phone) */}
+        <InstallAppButton className="mt-4 animate-fade-in" />
 
         {/* Demo Credentials */}
         <div className="mt-6 bg-white/80 backdrop-blur rounded-2xl border border-zinc-100 p-5 animate-fade-in">

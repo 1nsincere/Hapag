@@ -11,6 +11,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { THEME_PRESETS, buildBrandTheme, normalizeHex, type ThemeMode } from '@/lib/theme'
 import type { DemoRole } from '@/lib/demo'
 import { SITE } from '@/lib/site'
+import HapagMark from '@/app/components/HapagMark'
 import { enterDemo } from './enterDemo'
 import { lpMono, lpSans } from './fonts'
 import { bell, getSound, getSoundServer, printer, setSound, subscribeSound, tick } from './sound'
@@ -251,7 +252,7 @@ function Nav({ scrolled }: { scrolled: boolean }) {
 
   return (
     <header className={`lp-nav${scrolled || open ? ' is-scrolled' : ''}`}>
-      <a href="#top" className="lp-logo" aria-label="Hapag, back to top">hapag</a>
+      <a href="#top" className="lp-logo" aria-label="Hapag, back to top"><HapagMark size="1.05em" title="" />hapag</a>
       <nav aria-label="Sections" className="lp-nav-links">
         {NAV.map(n => <a key={n.id} href={`#${n.id}`} className={current === n.id ? 'is-current' : ''} aria-current={current === n.id ? 'true' : undefined}>{n.label}</a>)}
       </nav>
@@ -806,7 +807,7 @@ function Footer() {
     <footer className="lp-footer">
       <div className="lp-wrap lp-footer-cols">
         <div>
-          <span className="lp-logo">hapag</span>
+          <span className="lp-logo"><HapagMark size="1.05em" title="" />hapag</span>
           <p>QR ordering and kitchen screens for Filipino restaurants. A portfolio project with a working demo.</p>
         </div>
         <nav aria-label="Footer">

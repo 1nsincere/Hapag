@@ -9,6 +9,16 @@ const devOrigins = (process.env.DEV_ORIGINS ?? "192.168.1.18")
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: devOrigins,
+  // The app's service worker must always be re-checked, so updates reach installed devices
+  async headers() {
+    return [{
+      source: "/sw.js",
+      headers: [
+        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+      ],
+    }];
+  },
 };
 
 export default nextConfig;

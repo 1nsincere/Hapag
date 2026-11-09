@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F2B1F">
+<title>Hapag · No internet</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #0F2B1F; color: #F2F1EA;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid; place-items: center; text-align: center;
+    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+  main { max-width: 360px; display: grid; gap: 16px; justify-items: center; }
+  img { width: 72px; height: 72px; }
+  h1 { margin: 8px 0 0; font-size: 26px; line-height: 1.15; }
+  p { margin: 0; color: #C9CFC4; }
+  button {
+    margin-top: 8px; border: 0; border-radius: 999px; padding: 14px 28px;
+    background: #F2B33D; color: #0F2B1F; font-family: inherit; font-size: 16px; font-weight: 700; line-height: 1; cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid #F2F1EA; outline-offset: 3px; }
+  small { color: #8FA195; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/brand/hapag-mark-mango.svg" alt="Hapag">
+  <h1>No internet connection</h1>
+  <p>Hapag can't reach the internet right now. Check the Wi-Fi or switch on the backup pocket Wi-Fi, then try again.</p>
+  <button type="button" onclick="location.reload()">Try again</button>
+  <small>This page reloads by itself when the connection comes back.</small>
+</main>
+<script>addEventListener('online', function () { location.reload() })</script>
+</body>
+</html>

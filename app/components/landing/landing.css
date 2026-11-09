@@ -76,7 +76,8 @@ html:has(.lp) body { background: #0F2B1F; }
   border-bottom: 1px solid transparent; transition: background-color .3s, border-color .3s;
 }
 .lp-nav.is-scrolled { background: rgba(15, 43, 31, .94); border-color: var(--leaf-line); backdrop-filter: blur(10px); }
-.lp-logo { font: 800 26px/1 var(--sans); font-stretch: 75%; letter-spacing: -.01em; text-decoration: none; }
+.lp-logo { font: 800 26px/1 var(--sans); font-stretch: 75%; letter-spacing: -.01em; text-decoration: none; display: inline-flex; align-items: center; gap: .3em; }
+.lp-logo svg { flex: none; color: var(--mango); }
 .lp-nav-links { display: flex; gap: 28px; }
 .lp-nav-links a { font-size: 14px; font-weight: 600; color: var(--on-leaf-2); text-decoration: none; }
 .lp-nav-links a:hover { color: var(--on-leaf); text-decoration: underline; text-underline-offset: 6px; }
