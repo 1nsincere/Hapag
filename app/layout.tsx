@@ -45,6 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Apply the restaurant's cached brand theme before first paint (no colour flash) */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {/* Landing intro plays once per visit: mark it seen before first paint so it never flashes */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var a=+sessionStorage.getItem('hapag_intro_seen');if(a&&Date.now()-a>3000)document.documentElement.classList.add('lp-intro-seen')}catch(e){}" }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Staff screens font + icon font (icons use display=block so ligature names never flash) */}

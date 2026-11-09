@@ -656,3 +656,7 @@ html.lp-lock, html.lp-lock body { overflow: hidden; }
 
 .lp-mobile-open { display: none; }
 @media (max-width: 640px) { .lp-mobile-open { display: inline-flex; margin-top: 22px; } }
+
+/* Intro already seen this visit: no overlay, hero appears right away */
+html.lp-intro-seen .lp-intro { display: none; }
+html.lp-intro-seen .lp-hero-copy > *, html.lp-intro-seen .lp-hero-device { animation-delay: calc(.05s + var(--i, 0) * 70ms); }

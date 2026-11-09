@@ -5,7 +5,7 @@
  * Direction: banana leaf, achuete and mango; signage-style condensed headlines;
  * kitchen-ticket mono labels. Styling in ./landing.css (scoped under .lp).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import Image from 'next/image'
 import { QRCodeSVG } from 'qrcode.react'
 import { THEME_PRESETS, buildBrandTheme, normalizeHex, type ThemeMode } from '@/lib/theme'
@@ -110,6 +110,7 @@ const ROLES: { id: DemoRole | 'guest'; title: string; body: string; cta: string 
 ]
 
 const noopSubscribe = () => () => {}
+const INTRO_KEY = 'hapag_intro_seen'
 
 /** Adds .is-in to [data-reveal] elements once they scroll into view (they start visible). */
 function useReveal(root: React.RefObject<HTMLElement | null>) {
@@ -150,12 +151,34 @@ export default function Landing({ guestPath }: { guestPath: string }) {
   }, [])
 
   // Intro timeline (the animation itself is CSS); page scroll is locked while it plays
+  // Before first paint: if the intro already played this visit, hide it right away
+  // (covers in-app navigation back to "/", where the head script doesn't run again).
+  useLayoutEffect(() => {
+    try {
+      const at = Number(sessionStorage.getItem(INTRO_KEY))
+      if (at > 0 && Date.now() - at > 3000) document.documentElement.classList.add('lp-intro-seen')
+    } catch { /* storage blocked */ }
+  }, [])
+
+  // It plays once per visit: coming back from the demo screens goes straight to the page.
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const html = document.documentElement
-    if (!reduce) html.classList.add('lp-lock')
+    // Seen = it started more than a few seconds ago in this visit (a quick double-mount doesn't count)
+    let seen = html.classList.contains('lp-intro-seen')
+    try {
+      const at = Number(sessionStorage.getItem(INTRO_KEY))
+      seen = seen || (at > 0 && Date.now() - at > 3000)
+    } catch { /* storage blocked */ }
+    if (seen || reduce) {
+      html.classList.add('lp-intro-seen')
+      const off = setTimeout(() => setIntro('off'), 0)
+      return () => clearTimeout(off)
+    }
+    try { if (!sessionStorage.getItem(INTRO_KEY)) sessionStorage.setItem(INTRO_KEY, String(Date.now())) } catch { /* storage blocked */ }
+    html.classList.add('lp-lock')
     const sfx = setTimeout(() => printer(), 250)
-    const done = setTimeout(() => setIntro('off'), reduce ? 0 : 3050)
+    const done = setTimeout(() => setIntro('off'), 3050)
     return () => { clearTimeout(sfx); clearTimeout(done); html.classList.remove('lp-lock') }
   }, [])
   useEffect(() => {
