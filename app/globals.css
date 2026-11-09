@@ -206,3 +206,10 @@ body {
 @media (max-width: 640px) {
   .demo-badge { left: 50%; bottom: auto; top: calc(6px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); height: 26px; padding: 0 10px; font-size: 11px; }
 }
+
+/* Phones: a slim strip along the very top edge (above the header content) */
+@media (max-width: 640px) {
+  .demo-badge { left: 0; right: 0; top: 0; bottom: auto; transform: none; justify-content: center; height: calc(22px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 12px 0; border-radius: 0; font-size: 10.5px; box-shadow: none; }
+  .demo-badge span { display: inline; }
+  .demo-badge i { width: 6px; height: 6px; box-shadow: none; }
+}
