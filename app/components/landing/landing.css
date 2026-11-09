@@ -632,3 +632,27 @@ html.lp-lock, html.lp-lock body { overflow: hidden; }
 
 /* The bar is always solid (it looks the same over the green hero), so it can never turn see-through over light sections */
 .lp-nav { background: rgba(15, 43, 31, .94); backdrop-filter: blur(10px); }
+
+/* ═══ Responsive fixes (hero) ═══ */
+.lp-hero-title { max-width: none; }
+.lp-phone-tap { display: none; }
+@media (max-width: 1360px) { .lp-ticket-b { right: -14%; } }
+@media (max-width: 1180px) {
+  .lp-hero-inner { grid-template-columns: 1fr; }
+  .lp-hero-device { margin-top: 30px; }
+  .lp-printer { left: -44%; }
+  .lp-ticket-b { right: -30%; }
+}
+@media (max-width: 760px) { .lp-printer { left: -34%; } .lp-ticket-b { display: none; } }
+@media (max-width: 640px) {
+  /* printer sits under the phone, overlapping only its bottom edge */
+  .lp-hero-device { display: flex; flex-direction: column; align-items: center; }
+  .lp-printer { position: relative; left: auto; top: auto; width: min(270px, 84vw); margin: -86px auto 0; z-index: 4; }
+  .lp-printer .lp-ticket-print { font-size: 11.5px; }
+  .lp-printer .lp-ticket-row { flex-wrap: nowrap; white-space: nowrap; }
+  .lp-phone-tap { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 26%; text-decoration: none; }
+  .lp-phone-tap span { padding: 9px 14px; border-radius: 999px; background: rgba(20,23,15,.86); color: #F2F1EA; font: 600 12.5px/1 var(--sans); box-shadow: 0 10px 24px -10px rgba(0,0,0,.6); }
+}
+
+.lp-mobile-open { display: none; }
+@media (max-width: 640px) { .lp-mobile-open { display: inline-flex; margin-top: 22px; } }

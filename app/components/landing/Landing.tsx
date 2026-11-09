@@ -321,11 +321,14 @@ function Hero({ guestPath }: { guestPath: string }) {
             <div className="lp-phone-screen">
               <Image src="/landing/guest-welcome.jpg" alt="" fill sizes="330px" className="lp-phone-poster" priority />
               <iframe src={guestPath} title="Live demo: the guest menu at Table 1" className="lp-phone-frame" loading="eager" />
+              {/* Phones: the in-page live phone is off, so the mockup opens the real menu */}
+              <a href={guestPath} className="lp-phone-tap" aria-label="Open the live guest menu" />
             </div>
           </div>
           <p className="lp-phone-hint">This phone is live. Tap “View the menu”.</p>
 
           <TicketPrinter n={n} />
+          <a href={guestPath} className="lp-btn lp-btn-mango lp-mobile-open">Open the live menu <span className="lp-arrow" aria-hidden="true">→</span></a>
           <div className="lp-ticket lp-ticket-b" aria-hidden="true">
             <div className="lp-ticket-row"><b>TABLE 06</b><span>7:21 PM</span></div>
             <div className="lp-ticket-line">Ready to serve</div>
