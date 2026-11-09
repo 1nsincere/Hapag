@@ -201,3 +201,8 @@ body {
 .demo-note .material-symbols-outlined { color: #E0703A; font-size: 20px; }
 @keyframes demoIn { from { opacity: 0; transform: translate(-50%, -8px); } }
 @media (prefers-reduced-motion: reduce) { .demo-badge i, .demo-note { animation: none; } }
+
+/* Phones: badge moves to the top centre so it never covers buttons or alerts at the bottom */
+@media (max-width: 640px) {
+  .demo-badge { left: 50%; bottom: auto; top: calc(6px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); height: 26px; padding: 0 10px; font-size: 11px; }
+}

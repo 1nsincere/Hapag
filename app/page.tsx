@@ -31,8 +31,9 @@ export default async function Home() {
 
   let guestPath = '/menu/1'
   try {
-    const { ensureDemoReady, demoInfo } = await import('@/lib/server/demo')
+    const { ensureDemoReady, demoInfo, refreshDemoClock } = await import('@/lib/server/demo')
     await ensureDemoReady()
+    await refreshDemoClock().catch(e => console.error('[landing] demo clock', e))
     guestPath = (await demoInfo())?.guestPath ?? guestPath
   } catch (e) {
     console.error('[landing] demo setup', e)

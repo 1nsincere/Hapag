@@ -182,6 +182,50 @@ export async function resetDemo() {
   await Promise.all(Object.values(DEMO_ACCOUNTS).map(a => auth.updateUser(a.uid, { password: randomBytes(24).toString('base64url') })))
 }
 
+/**
+ * Keeps the sample orders looking current ("2 min ago", not "8h ago") between
+ * nightly resets. Shifts only the demo's own sample orders (no customerUid),
+ * keeping their spacing; visitors' orders are left alone. At most every 20 min.
+ */
+export async function refreshDemoClock() {
+  if (!DEMO_MODE) return
+  const db = adminDb()
+  const marker = db.collection('_system').doc('demoClock')
+  const now = Date.now()
+  const go = await db.runTransaction(async tx => {
+    const m = await tx.get(marker)
+    if (m.exists && now - Number(m.get('at')) < 20 * 60_000) return false
+    tx.set(marker, { at: now })
+    return true
+  })
+  if (!go) return
+
+  const snap = await db.collection('orders').where('demo', '==', true).get()
+  const samples = snap.docs.filter(d => !d.get('customerUid'))
+  if (!samples.length) return
+  const newest = Math.max(...samples.map(d => Number(d.get('createdAt')) || 0))
+  const shift = now - 2 * 60_000 - newest            // newest sample becomes "2 min ago"
+  if (shift < 10 * 60_000) return                     // already fresh enough
+
+  const batch = db.batch()
+  for (const d of samples) {
+    const patch: Record<string, number> = {}
+    for (const f of ['createdAt', 'updatedAt', 'paidAt'] as const) {
+      const v = Number(d.get(f))
+      if (v) patch[f] = v + shift
+    }
+    batch.update(d.ref, patch)
+  }
+  // Tables seated by those sample orders
+  const ids = new Set(samples.map(d => d.id))
+  const tables = await db.collection('tables').where('demo', '==', true).get()
+  for (const t of tables.docs) {
+    const occ = Number(t.get('occupiedAt'))
+    if (occ && ids.has(String(t.get('currentOrderId')))) batch.update(t.ref, { occupiedAt: occ + shift })
+  }
+  await batch.commit()
+}
+
 /** A short-lived Firebase sign-in token for a demo staff account. */
 export async function demoSignInToken(role: DemoRole) {
   assertDemo()
