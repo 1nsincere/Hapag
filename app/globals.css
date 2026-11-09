@@ -213,3 +213,4 @@ body {
   .demo-badge span { display: inline; }
   .demo-badge i { width: 6px; height: 6px; box-shadow: none; }
 }
+@media (max-width: 640px) { html.demo-strip body { padding-top: calc(22px + env(safe-area-inset-top, 0px)); } }

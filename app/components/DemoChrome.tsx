@@ -25,8 +25,14 @@ export default function DemoChrome() {
     return () => { window.removeEventListener(DEMO_BLOCKED_EVENT, onBlocked); clearTimeout(timer) }
   }, [])
 
+  const staffScreen = DEMO_MODE && /^\/(admin|cashier|kitchen|pos|dashboard)/.test(pathname ?? '')
+  // Phones: the badge is a strip along the top; make room for it instead of covering the header
+  useEffect(() => {
+    document.documentElement.classList.toggle('demo-strip', staffScreen)
+    return () => document.documentElement.classList.remove('demo-strip')
+  }, [staffScreen])
+
   if (!DEMO_MODE) return null
-  const staffScreen = /^\/(admin|cashier|kitchen|pos|dashboard)/.test(pathname ?? '')
 
   return (
     <>
